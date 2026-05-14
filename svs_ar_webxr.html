@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVS — AR Architecture</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; font-family: sans-serif; overflow:hidden; }
+
+  #loading-screen {
+    position:fixed; inset:0; background:#060c1a;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index:9999; transition: opacity 0.5s;
+  }
+  #loading-screen h1 {
+    color:#fff; font-size:22px; font-weight:700;
+    letter-spacing:-0.02em; margin-bottom:6px;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  #loading-screen p { color:#7a93b8; font-size:13px; margin-bottom:24px; }
+  .loader-bar {
+    width:200px; height:3px; background:rgba(255,255,255,0.1);
+    border-radius:2px; overflow:hidden;
+  }
+  .loader-fill {
+    height:100%; background:linear-gradient(90deg,#1a6ef5,#00c9a7);
+    border-radius:2px; animation: load 2.5s ease forwards;
+  }
+  @keyframes load { from{width:0} to{width:100%} }
+
+  #no-ar-screen {
+    position:fixed; inset:0; background:#060c1a;
+    display:none; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index:9998; padding:30px; text-align:center;
+  }
+  #no-ar-screen h2 { color:#fff; font-size:20px; margin-bottom:10px; }
+  #no-ar-screen p { color:#7a93b8; font-size:13px; line-height:1.7; margin-bottom:20px; }
+  .btn {
+    background:rgba(26,110,245,0.15);
+    border:1px solid rgba(26,110,245,0.4);
+    color:#6fa8ff; padding:12px 24px;
+    border-radius:100px; font-size:13px;
+    cursor:pointer; text-decoration:none;
+    display:inline-block; margin:6px;
+  }
+
+  #ui-overlay {
+    position:fixed; bottom:0; left:0; right:0;
+    z-index:100; pointer-events:none;
+    padding:16px;
+  }
+
+  #scan-hint {
+    background:rgba(6,12,26,0.85);
+    backdrop-filter:blur(12px);
+    border:1px solid rgba(26,110,245,0.3);
+    border-radius:16px;
+    padding:14px 18px;
+    text-align:center;
+    pointer-events:auto;
+  }
+  #scan-hint .hint-icon { font-size:28px; margin-bottom:6px; }
+  #scan-hint h3 { color:#fff; font-size:14px; font-weight:600; margin-bottom:4px; }
+  #scan-hint p { color:#7a93b8; font-size:11px; line-height:1.5; }
+  #scan-hint .target-label {
+    display:inline-block;
+    background:rgba(0,201,167,0.1);
+    border:1px solid rgba(0,201,167,0.3);
+    color:#00c9a7;
+    font-size:10px;
+    padding:3px 10px;
+    border-radius:4px;
+    margin-top:8px;
+    font-family:monospace;
+  }
+
+  #info-card {
+    display:none;
+    background:rgba(6,12,26,0.9);
+    backdrop-filter:blur(16px);
+    border:1px solid rgba(26,110,245,0.3);
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:10px;
+    pointer-events:auto;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+  #info-card h3 { color:#6fa8ff; font-size:13px; font-weight:600; margin-bottom:6px; }
+  #info-card p { color:#7a93b8; font-size:11px; line-height:1.6; }
+  #info-card .close-btn {
+    float:right; color:#7a93b8; cursor:pointer;
+    font-size:16px; margin-left:8px;
+  }
+
+  #target-image {
+    position:fixed; top:0; left:0; right:0;
+    z-index:50; pointer-events:none;
+    display:flex; align-items:flex-start; justify-content:flex-end;
+    padding:12px;
+  }
+  #target-thumb {
+    background:rgba(6,12,26,0.8);
+    border:1px solid rgba(26,110,245,0.3);
+    border-radius:10px;
+    padding:8px;
+    display:flex; flex-direction:column;
+    align-items:center; gap:4px;
+  }
+  #target-thumb canvas { width:64px; height:64px; border-radius:6px; }
+  #target-thumb span { color:#7a93b8; font-size:9px; font-family:monospace; }
+
+  a-scene { width:100vw; height:100vh; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div style="font-size:36px;margin-bottom:16px">🔬</div>
+  <h1>SVS Architecture</h1>
+  <p>Initializing AR camera...</p>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<!-- NO AR FALLBACK -->
+<div id="no-ar-screen">
+  <div style="font-size:48px;margin-bottom:16px">📱</div>
+  <h2>Camera Access Required</h2>
+  <p>This AR experience needs camera access to detect the printed marker and display the 3D architecture above it.<br><br>
+  Please allow camera access when prompted, and open this on a mobile device.</p>
+  <a class="btn" href="svs_architecture_ar.html">View Interactive Version Instead →</a>
+</div>
+
+<!-- UI OVERLAY -->
+<div id="ui-overlay">
+  <div id="info-card">
+    <span class="close-btn" onclick="closeInfo()">✕</span>
+    <h3 id="info-title">Layer Info</h3>
+    <p id="info-desc">Tap a layer to learn more.</p>
+  </div>
+  <div id="scan-hint">
+    <div class="hint-icon">🎯</div>
+    <h3>Point camera at your poster marker</h3>
+    <p>The SVS architecture will appear floating in 3D above the printed QR/marker image</p>
+    <div class="target-label">▣ Scanning for marker...</div>
+  </div>
+</div>
+
+<!-- MINI TARGET PREVIEW -->
+<div id="target-image">
+  <div id="target-thumb">
+    <canvas id="marker-preview"></canvas>
+    <span>Scan this ↑</span>
+  </div>
+</div>
+
+<!-- A-FRAME + MIND AR -->
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+
+<script>
+// Register custom components BEFORE a-scene
+AFRAME.registerComponent('layer-interact', {
+  schema: { title: {type:'string'}, desc: {type:'string'} },
+  init: function() {
+    this.el.addEventListener('click', () => {
+      showInfo(this.data.title, this.data.desc);
+    });
+  }
+});
+
+AFRAME.registerComponent('float-anim', {
+  schema: { delay: {default:0}, amplitude: {default:0.04} },
+  init: function() {
+    this.startY = parseFloat(this.el.getAttribute('position').y);
+    this.t = this.data.delay;
+  },
+  tick: function(time, delta) {
+    this.t += delta * 0.001;
+    const y = this.startY + Math.sin(this.t * 1.2) * this.data.amplitude;
+    this.el.object3D.position.y = y;
+  }
+});
+
+AFRAME.registerComponent('pulse-opacity', {
+  schema: { min: {default:0.7}, max: {default:1.0}, speed: {default:1} },
+  init: function() { this.t = 0; },
+  tick: function(time, delta) {
+    this.t += delta * 0.001 * this.data.speed;
+    const v = this.data.min + (Math.sin(this.t) * 0.5 + 0.5) * (this.data.max - this.data.min);
+    this.el.setAttribute('opacity', v);
+  }
+});
+
+AFRAME.registerComponent('rotate-slow', {
+  schema: { speed: {default:20} },
+  tick: function(time) {
+    this.el.object3D.rotation.y = (time / 1000) * (Math.PI * 2 / this.data.speed);
+  }
+});
+</script>
+
+<a-scene
+  mindar-image="imageTargetSrc: #marker-mind; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
+  color-space="sRGB"
+  renderer="colorManagement: true; physicallyCorrectLights: true"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+  embedded>
+
+  <a-assets>
+    <!-- We'll generate the .mind file from the canvas marker -->
+    <img id="marker-mind" src="marker.mind" crossorigin="anonymous">
+  </a-assets>
+
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <!-- AR CONTENT — appears above the marker -->
+  <a-entity mindar-image-target="targetIndex: 0">
+
+    <!-- AMBIENT + DIRECTIONAL LIGHT -->
+    <a-entity light="type: ambient; color: #ffffff; intensity: 0.4"></a-entity>
+    <a-entity light="type: directional; color: #6fa8ff; intensity: 0.8" position="1 2 1"></a-entity>
+    <a-entity light="type: point; color: #00c9a7; intensity: 0.6" position="-1 1 0.5"></a-entity>
+
+    <!-- ========= LAYER 1 — DATA SOURCES (bottom) ========= -->
+    <a-entity float-anim="delay:0; amplitude:0.02" position="0 0.05 0">
+
+      <!-- Platform base -->
+      <a-box position="0 -0.02 0" width="1.6" height="0.02" depth="0.5"
+        color="#0d1829" opacity="0.85" metalness="0.3" roughness="0.7"></a-box>
+
+      <!-- LABEL -->
+      <a-text value="DATA SOURCES" position="-0.7 0.06 0.26" color="#00c9a7"
+        font="mozillavr" width="1.2" align="left" wrap-count="20"></a-text>
+
+      <!-- Job Postings card -->
+      <a-entity position="-0.52 0.06 0"
+        layer-interact="title: 👔 Labor Agent Input; desc: Collects job posting counts from LinkedIn, Indeed, Glassdoor. Detects abnormal drops in AI-replaceable roles — data entry, customer service, HR. A drop signals AI replacement is accelerating.">
+        <a-box width="0.42" height="0.10" depth="0.32" color="#0a1f38"
+          opacity="0.92" metalness="0.2" roughness="0.6"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.052 0" color="#00c9a7" opacity="0.9"></a-box>
+        <a-text value="JOB&#10;POSTINGS" position="0 0.02 0.165" color="#00c9a7"
+          font="mozillavr" width="0.8" align="center" wrap-count="12"></a-text>
+        <a-text value="LinkedIn · Indeed" position="0 -0.02 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="14"></a-text>
+      </a-entity>
+
+      <!-- Company Reports card -->
+      <a-entity position="0 0.06 0"
+        layer-interact="title: 📄 Document Agent Input; desc: Scrapes SEC 10-K filings and annual reports. Counts AI adoption keywords vs SaaS dependency language. Rising AI mentions = internal disruption accelerating.">
+        <a-box width="0.42" height="0.10" depth="0.32" color="#0a1f38"
+          opacity="0.92" metalness="0.2" roughness="0.6"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.052 0" color="#6fa8ff" opacity="0.9"></a-box>
+        <a-text value="10-K&#10;FILINGS" position="0 0.02 0.165" color="#6fa8ff"
+          font="mozillavr" width="0.8" align="center" wrap-count="12"></a-text>
+        <a-text value="SEC.gov" position="0 -0.02 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="14"></a-text>
+      </a-entity>
+
+      <!-- Market Data card -->
+      <a-entity position="0.52 0.06 0"
+        layer-interact="title: 📈 Market Agent Input; desc: Pulls stock prices and trading volume via Yahoo Finance API. Detects volume spikes without price movement — the smart money exit signal. Formula: (Volume spike% × 0.6) + (Price vol × 0.4).">
+        <a-box width="0.42" height="0.10" depth="0.32" color="#0a1f38"
+          opacity="0.92" metalness="0.2" roughness="0.6"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.052 0" color="#f5a623" opacity="0.9"></a-box>
+        <a-text value="MARKET&#10;DATA" position="0 0.02 0.165" color="#f5a623"
+          font="mozillavr" width="0.8" align="center" wrap-count="12"></a-text>
+        <a-text value="Yahoo Finance" position="0 -0.02 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="14"></a-text>
+      </a-entity>
+
+      <!-- Connector lines up -->
+      <a-cylinder position="-0.52 0.14 0" radius="0.005" height="0.12" color="#00c9a7" opacity="0.6"></a-cylinder>
+      <a-cylinder position="0 0.14 0" radius="0.005" height="0.12" color="#6fa8ff" opacity="0.6"></a-cylinder>
+      <a-cylinder position="0.52 0.14 0" radius="0.005" height="0.12" color="#f5a623" opacity="0.6"></a-cylinder>
+    </a-entity>
+
+    <!-- ========= LAYER 2 — AI AGENTS ========= -->
+    <a-entity float-anim="delay:1; amplitude:0.025" position="0 0.32 0">
+
+      <a-box position="0 -0.02 0" width="1.6" height="0.02" depth="0.5"
+        color="#111f33" opacity="0.85" metalness="0.3" roughness="0.7"></a-box>
+
+      <a-text value="AI AGENTS" position="-0.7 0.06 0.26" color="#6fa8ff"
+        font="mozillavr" width="1.2" align="left" wrap-count="20"></a-text>
+
+      <!-- Labor Agent -->
+      <a-entity position="-0.52 0.08 0"
+        layer-interact="title: 🧑‍💼 Labor Agent; desc: Scores labor disruption 0-10. Prompt: Given job posting trends for sector X, score the likelihood AI agents are replacing human workers. Weight in SVS formula: 0.40 (highest — earliest signal).">
+        <a-box width="0.42" height="0.14" depth="0.32" color="#051428"
+          opacity="0.95" metalness="0.3" roughness="0.5"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.072 0" color="#00c9a7" opacity="1"></a-box>
+        <a-text value="LABOR" position="0 0.04 0.165" color="#00c9a7"
+          font="mozillavr" width="0.9" align="center" wrap-count="10"></a-text>
+        <a-text value="AGENT" position="0 0.01 0.165" color="#00c9a7"
+          font="mozillavr" width="0.9" align="center" wrap-count="10"></a-text>
+        <a-text value="w = 0.40" position="0 -0.03 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="12"></a-text>
+        <!-- Score indicator -->
+        <a-text value="8.2" position="0 -0.055 0.165" color="#00c9a7"
+          font="mozillavr" width="1.2" align="center" wrap-count="6"></a-text>
+      </a-entity>
+
+      <!-- Document Agent -->
+      <a-entity position="0 0.08 0"
+        layer-interact="title: 📄 Document Agent; desc: Scores internal disruption 0-10. Reads company filings and detects AI adoption language spikes. Weight in SVS: 0.35 (most reliable signal, medium weight).">
+        <a-box width="0.42" height="0.14" depth="0.32" color="#051428"
+          opacity="0.95" metalness="0.3" roughness="0.5"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.072 0" color="#6fa8ff" opacity="1"></a-box>
+        <a-text value="DOCUMENT" position="0 0.04 0.165" color="#6fa8ff"
+          font="mozillavr" width="0.9" align="center" wrap-count="12"></a-text>
+        <a-text value="AGENT" position="0 0.01 0.165" color="#6fa8ff"
+          font="mozillavr" width="0.9" align="center" wrap-count="10"></a-text>
+        <a-text value="w = 0.35" position="0 -0.03 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="12"></a-text>
+        <a-text value="7.9" position="0 -0.055 0.165" color="#6fa8ff"
+          font="mozillavr" width="1.2" align="center" wrap-count="6"></a-text>
+      </a-entity>
+
+      <!-- Market Agent -->
+      <a-entity position="0.52 0.08 0"
+        layer-interact="title: 📊 Market Agent; desc: Scores market stress 0-10. Detects unusual volume without price movement — smart money quietly exiting. Formula: (Volume spike% × 0.6) + (Price volatility × 0.4). Weight in SVS: 0.25.">
+        <a-box width="0.42" height="0.14" depth="0.32" color="#051428"
+          opacity="0.95" metalness="0.3" roughness="0.5"></a-box>
+        <a-box width="0.42" height="0.004" depth="0.32" position="0 0.072 0" color="#f5a623" opacity="1"></a-box>
+        <a-text value="MARKET" position="0 0.04 0.165" color="#f5a623"
+          font="mozillavr" width="0.9" align="center" wrap-count="10"></a-text>
+        <a-text value="AGENT" position="0 0.01 0.165" color="#f5a623"
+          font="mozillavr" width="0.9" align="center" wrap-count="10"></a-text>
+        <a-text value="w = 0.25" position="0 -0.03 0.165" color="#7a93b8"
+          font="mozillavr" width="0.7" align="center" wrap-count="12"></a-text>
+        <a-text value="6.8" position="0 -0.055 0.165" color="#f5a623"
+          font="mozillavr" width="1.2" align="center" wrap-count="6"></a-text>
+      </a-entity>
+
+      <!-- Converging lines -->
+      <a-entity>
+        <a-cylinder position="-0.26 0.16 0" rotation="0 0 -40" radius="0.004" height="0.16" color="#ffffff" opacity="0.2"></a-cylinder>
+        <a-cylinder position="0 0.16 0" radius="0.004" height="0.13" color="#ffffff" opacity="0.2"></a-cylinder>
+        <a-cylinder position="0.26 0.16 0" rotation="0 0 40" radius="0.004" height="0.16" color="#ffffff" opacity="0.2"></a-cylinder>
+      </a-entity>
+    </a-entity>
+
+    <!-- ========= LAYER 3 — SVS SCORE ========= -->
+    <a-entity float-anim="delay:2; amplitude:0.03" position="0 0.62 0">
+
+      <!-- Glow ring around SVS -->
+      <a-torus position="0 0 0" radius="0.38" radius-tubular="0.006"
+        color="#f5a623" opacity="0.4" pulse-opacity="min:0.2; max:0.6; speed:1.5"></a-torus>
+      <a-torus position="0 0 0" radius="0.30" radius-tubular="0.003"
+        color="#e63946" opacity="0.3" pulse-opacity="min:0.1; max:0.4; speed:2"></a-torus>
+
+      <a-cylinder position="0 -0.005 0" radius="0.36" height="0.01"
+        color="#1a2a44" opacity="0.85"></a-cylinder>
+
+      <!-- Main SVS box -->
+      <a-entity position="0 0.08 0"
+        layer-interact="title: ⚡ SVS Score — 7.9 ALERT; desc: SVS = (8.2 × 0.40) + (7.9 × 0.35) + (6.8 × 0.25) = 7.9. Threshold: SVS > 7.0 triggers SECTOR ALERT. SVS > 8.5 triggers CRITICAL WARNING. SaaS sector is in alert zone.">
+        <a-box width="0.75" height="0.22" depth="0.22" color="#0d1829"
+          opacity="0.95" metalness="0.4" roughness="0.4"></a-box>
+        <a-text value="SVS SCORE" position="0 0.07 0.115" color="#f5a623"
+          font="mozillavr" width="1.4" align="center" wrap-count="14"></a-text>
+        <a-text value="7.9" position="0 0.01 0.115" color="#e63946"
+          font="mozillavr" width="2.4" align="center" wrap-count="4"></a-text>
+        <a-text value="SECTOR ALERT" position="0 -0.07 0.115" color="#f9c22e"
+          font="mozillavr" width="1.3" align="center" wrap-count="14"></a-text>
+      </a-entity>
+
+      <!-- Formula display -->
+      <a-text value="0.40×L + 0.35×D + 0.25×M" position="0 -0.07 0.13"
+        color="#7a93b8" font="mozillavr" width="1.1" align="center" wrap-count="28"></a-text>
+
+    </a-entity>
+
+    <!-- ========= LAYER 4 — ALERT SYSTEM ========= -->
+    <a-entity float-anim="delay:0.5; amplitude:0.02" position="0 0.95 0">
+
+      <a-box position="0 0 0" width="1.4" height="0.18" depth="0.3"
+        color="#1a0508" opacity="0.9" metalness="0.2" roughness="0.7"></a-box>
+      <a-box position="0 0.092 0" width="1.4" height="0.004" depth="0.3"
+        color="#e63946" opacity="1"></a-box>
+
+      <a-text value="🔴  SVS > 8.5 — CRITICAL" position="-0.5 0.04 0.155"
+        color="#ff6b6b" font="mozillavr" width="1.5" align="left" wrap-count="26"></a-text>
+      <a-text value="⚠   SVS > 7.0 — ALERT" position="-0.5 -0.03 0.155"
+        color="#f9c22e" font="mozillavr" width="1.5" align="left" wrap-count="26"></a-text>
+
+      <!-- Pulsing alert light -->
+      <a-sphere position="0.6 0 0" radius="0.05" color="#e63946"
+        pulse-opacity="min:0.3; max:1.0; speed:3"
+        layer-interact="title: 🔴 Alert System; desc: SVS > 7.0: Sector Alert triggered. Reduce exposure by 30%, increase capital buffer, flag for supervisory review. SVS > 8.5: Critical — immediate Basel IV Pillar 2 escalation.">
+      </a-sphere>
+    </a-entity>
+
+    <!-- ========= LAYER 5 — PREVENTION (top) ========= -->
+    <a-entity float-anim="delay:1.5; amplitude:0.02" position="0 1.22 0">
+
+      <a-box position="0 0 0" width="1.4" height="0.22" depth="0.3"
+        color="#030d1a" opacity="0.9" metalness="0.2" roughness="0.7"></a-box>
+      <a-box position="0 0.112 0" width="1.4" height="0.004" depth="0.3"
+        color="#1a6ef5" opacity="1"></a-box>
+
+      <a-text value="PREVENTION ACTIONS" position="0 0.06 0.155" color="#6fa8ff"
+        font="mozillavr" width="1.6" align="center" wrap-count="24"></a-text>
+      <a-text value="↓ Exposure  |  ↑ Buffer  |  Regulatory Flag" position="0 0.01 0.155"
+        color="#7a93b8" font="mozillavr" width="1.5" align="center" wrap-count="40"></a-text>
+      <a-text value="Basel IV · Pillar 2" position="0 -0.05 0.155"
+        color="#1a6ef5" font="mozillavr" width="1.2" align="center" wrap-count="22"
+        layer-interact="title: 🏛️ Prevention Actions; desc: IF SVS > 7.0: Reduce sector exposure by 30%, increase capital buffer, add to watch list. IF SVS > 8.5: Immediate supervisory notification, stress test, Basel IV Pillar 2 escalation.">
+      </a-text>
+    </a-entity>
+
+    <!-- ========= FLOATING PARTICLES ========= -->
+    <a-entity position="0.7 0.5 0.2" rotate-slow="speed:15">
+      <a-sphere radius="0.018" color="#00c9a7" opacity="0.6" pulse-opacity="min:0.3;max:0.8;speed:2.1"></a-sphere>
+    </a-entity>
+    <a-entity position="-0.7 0.8 0.1" rotate-slow="speed:22">
+      <a-sphere radius="0.014" color="#6fa8ff" opacity="0.5" pulse-opacity="min:0.2;max:0.7;speed:1.7"></a-sphere>
+    </a-entity>
+    <a-entity position="0.5 1.1 -0.1" rotate-slow="speed:18">
+      <a-sphere radius="0.012" color="#f5a623" opacity="0.5" pulse-opacity="min:0.2;max:0.6;speed:2.4"></a-sphere>
+    </a-entity>
+
+    <!-- Vertical spine connecting layers -->
+    <a-cylinder position="0 0.6 -0.12" radius="0.006" height="1.3"
+      color="#1a6ef5" opacity="0.15"></a-cylinder>
+
+  </a-entity><!-- /mindar-image-target -->
+
+</a-scene>
+
+<!-- Generate marker target image in canvas -->
+<script>
+// Draw a simple AR marker on the preview canvas
+const mc = document.getElementById('marker-preview');
+const mctx = mc.getContext('2d');
+mc.width = 200; mc.height = 200;
+
+// Black background
+mctx.fillStyle = '#000';
+mctx.fillRect(0,0,200,200);
+
+// White border
+mctx.fillStyle = '#fff';
+mctx.fillRect(10,10,180,180);
+
+// Black inner
+mctx.fillStyle = '#000';
+mctx.fillRect(20,20,160,160);
+
+// Pattern
+mctx.fillStyle = '#fff';
+// Corners
+mctx.fillRect(30,30,40,40);
+mctx.fillRect(130,30,40,40);
+mctx.fillRect(30,130,40,40);
+// Center cross
+mctx.fillRect(90,85,20,30);
+mctx.fillRect(80,95,40,10);
+// Additional unique pattern
+mctx.fillRect(130,130,20,20);
+mctx.fillRect(155,130,15,15);
+mctx.fillRect(130,155,15,15);
+// Text
+mctx.fillStyle = '#fff';
+mctx.font = 'bold 11px monospace';
+mctx.textAlign = 'center';
+mctx.fillText('SVS·AR', 100, 113);
+
+// Loading done
+setTimeout(() => {
+  document.getElementById('loading-screen').style.opacity = '0';
+  setTimeout(() => {
+    document.getElementById('loading-screen').style.display = 'none';
+  }, 500);
+}, 2600);
+
+// Handle AR events
+document.addEventListener('DOMContentLoaded', () => {
+  const scene = document.querySelector('a-scene');
+
+  scene.addEventListener('arReady', () => {
+    document.getElementById('scan-hint').querySelector('.target-label').textContent = '▣ Camera active — scan marker';
+  });
+
+  scene.addEventListener('arError', () => {
+    document.getElementById('no-ar-screen').style.display = 'flex';
+  });
+
+  const target = document.querySelector('[mindar-image-target]');
+  if (target) {
+    target.addEventListener('targetFound', () => {
+      document.getElementById('scan-hint').querySelector('.target-label').textContent = '✓ Marker detected!';
+      document.getElementById('scan-hint').querySelector('h3').textContent = 'Architecture detected — tap any layer';
+      document.getElementById('scan-hint').querySelector('.hint-icon').textContent = '✨';
+    });
+    target.addEventListener('targetLost', () => {
+      document.getElementById('scan-hint').querySelector('.target-label').textContent = '▣ Scanning for marker...';
+      document.getElementById('scan-hint').querySelector('h3').textContent = 'Point camera at your poster marker';
+      document.getElementById('scan-hint').querySelector('.hint-icon').textContent = '🎯';
+      closeInfo();
+    });
+  }
+});
+
+function showInfo(title, desc) {
+  document.getElementById('info-title').textContent = title;
+  document.getElementById('info-desc').textContent = desc;
+  document.getElementById('info-card').style.display = 'block';
+}
+function closeInfo() {
+  document.getElementById('info-card').style.display = 'none';
+}
+</script>
+
+</body>
+</html>

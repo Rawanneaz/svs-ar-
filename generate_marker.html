@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SVS AR Marker — Print This</title>
+<style>
+  body { background:#f5f5f5; font-family:monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .page { background:#fff; padding:40px; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.1); max-width:400px; width:100%; text-align:center; }
+  h1 { font-size:16px; font-weight:700; margin-bottom:4px; color:#111; }
+  p { font-size:11px; color:#666; margin-bottom:20px; line-height:1.6; }
+  canvas { border:3px solid #000; border-radius:4px; display:block; margin:0 auto 20px; }
+  .btn { display:inline-block; background:#1a6ef5; color:#fff; padding:10px 22px; border-radius:8px; font-size:13px; cursor:pointer; border:none; margin:4px; }
+  .btn-outline { background:transparent; border:2px solid #1a6ef5; color:#1a6ef5; }
+  .instructions { background:#f8f8f8; border:1px solid #eee; border-radius:8px; padding:14px; margin-top:16px; text-align:left; font-size:11px; color:#444; line-height:1.8; }
+  .instructions strong { color:#111; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>SVS Architecture — AR Marker</h1>
+  <p>Print this marker and attach it to your poster.<br>The 3D architecture appears above it when scanned.</p>
+  <canvas id="marker" width="300" height="300"></canvas>
+  <button class="btn" onclick="downloadMarker()">⬇ Download PNG</button>
+  <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
+
+  <div class="instructions">
+    <strong>Setup instructions:</strong><br>
+    1. Print this marker at ~10×10cm on your poster<br>
+    2. Host <code>svs_ar_webxr.html</code> on GitHub Pages<br>
+    3. Generate QR code → link to hosted page<br>
+    4. Jury scans QR → opens camera → points at this marker → 3D architecture appears 🎯<br><br>
+    <strong>Note:</strong> Best in good lighting. Keep marker flat and unobstructed.
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('marker');
+const ctx = canvas.getContext('2d');
+const S = 300;
+
+function drawMarker() {
+  // White background
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,S,S);
+
+  // Outer black border
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,S,S);
+
+  // White inner
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(15,15,S-30,S-30);
+
+  // Black working area
+  ctx.fillStyle = '#000';
+  ctx.fillRect(25,25,S-50,S-50);
+
+  const U = (S-50)/7; // unit
+
+  // Top-left finder pattern
+  drawFinder(ctx, 25, 25, U*2.5);
+  // Top-right finder pattern
+  drawFinder(ctx, 25 + U*4.5, 25, U*2.5);
+  // Bottom-left finder pattern
+  drawFinder(ctx, 25, 25 + U*4.5, U*2.5);
+
+  // Data pattern (unique to this marker)
+  ctx.fillStyle = '#fff';
+  // Row of data bits
+  const bits = [1,0,1,1,0,1,0, 0,1,0,0,1,0,1, 1,1,0,1,1,0,0];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 7; j++) {
+      if (bits[i*7+j]) {
+        ctx.fillRect(25 + j*U, 25 + (3.5+i)*U, U-1, U-1);
+      }
+    }
+  }
+  // Column data
+  const cbits = [1,0,1, 0,1,1, 1,0,0];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (cbits[i*3+j]) {
+        ctx.fillRect(25 + (3.5+i)*U, 25 + j*U, U-1, U-1);
+      }
+    }
+  }
+
+  // Center label
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${U*0.7}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('SVS', S/2, S/2 - U*0.2);
+  ctx.font = `${U*0.5}px monospace`;
+  ctx.fillText('AR', S/2, S/2 + U*0.6);
+}
+
+function drawFinder(ctx, x, y, size) {
+  const u = size / 7;
+  // Outer black
+  ctx.fillStyle = '#000';
+  // Already black bg
+  // White
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x, y, size, size);
+  // Black border inner
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x+u, y+u, size-2*u, size-2*u);
+  // White center
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x+2*u, y+2*u, size-4*u, size-4*u);
+  // Black center dot
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x+3*u, y+3*u, u, u);
+}
+
+drawMarker();
+
+function downloadMarker() {
+  const a = document.createElement('a');
+  a.download = 'svs_ar_marker.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>
