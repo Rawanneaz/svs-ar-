@@ -1,508 +1,583 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SVS Architecture — Interactive 3D</title>
+<title>SVS — Hologram</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-html, body { width:100%; height:100%; overflow:hidden; background:#000; }
-canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+html,body { width:100%; height:100%; background:#000; overflow:hidden; }
+canvas { display:block; }
 
-#ui {
-  position:fixed; bottom:0; left:0; right:0;
-  z-index:10; padding:10px;
-  pointer-events:none;
-}
-#hint {
-  background:rgba(6,12,26,0.90);
-  border:1px solid rgba(26,110,245,0.4);
-  border-radius:16px;
-  padding:12px 18px;
-  text-align:center;
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  pointer-events:auto;
-}
-#hint h3 { color:#fff; font-size:14px; font-weight:700; margin-bottom:3px; font-family:sans-serif; }
-#hint p  { color:#7a93b8; font-size:11px; font-family:sans-serif; }
-#hint .badge {
-  display:inline-block; margin-top:8px;
-  background:rgba(0,201,167,0.12);
-  border:1px solid rgba(0,201,167,0.35);
-  color:#00c9a7; font-size:10px;
-  padding:3px 12px; border-radius:5px;
-  font-family:monospace;
-}
-
-#popup {
-  display:none;
-  position:fixed; bottom:140px; left:10px; right:10px;
-  background:rgba(6,12,26,0.95);
-  border:1px solid rgba(26,110,245,0.4);
-  border-radius:14px; padding:14px 16px;
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  z-index:20;
-  animation: up 0.25s ease;
-}
-@keyframes up { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
-#popup .x { float:right; color:#7a93b8; font-size:22px; cursor:pointer; line-height:1; }
-#popup h3 { color:#6fa8ff; font-size:13px; font-weight:700; margin-bottom:6px; font-family:sans-serif; }
-#popup p  { color:#a0b4cc; font-size:12px; line-height:1.65; font-family:sans-serif; }
-
-#title-screen {
-  position:fixed; inset:0; z-index:30;
-  background:linear-gradient(135deg,#060c1a,#0d1829);
+#overlay {
+  position:fixed; inset:0; z-index:20;
+  background:linear-gradient(135deg,#010812,#020f1f);
   display:flex; flex-direction:column;
   align-items:center; justify-content:center;
-  text-align:center; padding:30px;
-  transition:opacity 0.6s ease;
+  text-align:center; padding:28px;
 }
-#title-screen .logo { font-size:52px; margin-bottom:16px; }
-#title-screen h1 {
-  color:#fff; font-size:26px; font-weight:800;
-  letter-spacing:-0.02em; margin-bottom:6px;
-  font-family:sans-serif;
-  background:linear-gradient(135deg,#fff 40%,#6fa8ff);
+.glow-ring {
+  width:110px; height:110px; border-radius:50%;
+  border:2px solid rgba(0,220,180,0.4);
+  box-shadow:0 0 30px rgba(0,220,180,0.3), inset 0 0 30px rgba(0,220,180,0.1);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 22px;
+  animation: spinRing 8s linear infinite;
+}
+@keyframes spinRing {
+  from{box-shadow:0 0 30px rgba(0,220,180,0.3),inset 0 0 30px rgba(0,220,180,0.1)}
+  50%{box-shadow:0 0 50px rgba(0,180,255,0.5),inset 0 0 40px rgba(0,180,255,0.15)}
+  to{box-shadow:0 0 30px rgba(0,220,180,0.3),inset 0 0 30px rgba(0,220,180,0.1)}
+}
+.glow-ring svg { width:52px; height:52px; }
+#overlay h1 {
+  font:800 28px/1.1 'SF Pro Display','Helvetica Neue',sans-serif;
+  background:linear-gradient(135deg,#fff 30%,#00dcb4 70%,#0af);
   -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  margin-bottom:8px; letter-spacing:-0.03em;
 }
-#title-screen p { color:#7a93b8; font-size:13px; line-height:1.7; margin-bottom:28px; font-family:sans-serif; }
-#start-btn {
-  background:linear-gradient(135deg,#1a6ef5,#0050cc);
-  color:#fff; border:none; border-radius:100px;
-  padding:14px 36px; font-size:15px; font-weight:700;
-  cursor:pointer; font-family:sans-serif;
-  box-shadow: 0 4px 24px rgba(26,110,245,0.4);
+#overlay .sub {
+  color:rgba(150,190,230,0.8); font-size:13px;
+  font-family:'Helvetica Neue',sans-serif;
+  line-height:1.6; margin-bottom:28px; max-width:280px;
 }
-.mini-badge {
-  display:inline-block; margin:4px;
-  background:rgba(26,110,245,0.12);
-  border:1px solid rgba(26,110,245,0.25);
-  color:#6fa8ff; font-size:11px;
-  padding:4px 10px; border-radius:6px;
-  font-family:monospace;
+#overlay .tags { display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-bottom:28px; }
+#overlay .tag {
+  background:rgba(0,180,140,0.1); border:1px solid rgba(0,180,140,0.3);
+  color:#00dcb4; font-size:10px; padding:4px 12px; border-radius:20px;
+  font-family:monospace; letter-spacing:0.04em;
 }
+#start {
+  background:linear-gradient(135deg,#00dcb4,#0af);
+  border:none; border-radius:100px; padding:15px 40px;
+  color:#000; font-size:15px; font-weight:800;
+  cursor:pointer; font-family:'Helvetica Neue',sans-serif;
+  box-shadow:0 0 40px rgba(0,220,180,0.4);
+  letter-spacing:-0.01em;
+}
+#start:active { transform:scale(0.97); }
+
+#hud {
+  position:fixed; bottom:0; left:0; right:0; z-index:10;
+  padding:10px 12px; pointer-events:none;
+}
+#hud-box {
+  background:rgba(1,10,22,0.88);
+  border:1px solid rgba(0,200,160,0.25);
+  border-radius:16px; padding:12px 16px;
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  display:flex; align-items:center; gap:12px;
+  pointer-events:auto;
+}
+.hud-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:#00dcb4; flex-shrink:0;
+  box-shadow:0 0 8px #00dcb4;
+  animation:blink 1.5s infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+#hud-text { flex:1; }
+#hud-text h4 { color:#fff; font-size:12px; font-weight:700; font-family:sans-serif; margin-bottom:2px; }
+#hud-text p  { color:rgba(150,180,220,0.8); font-size:10px; font-family:sans-serif; }
+#svs-badge {
+  background:rgba(230,57,70,0.15);
+  border:1px solid rgba(230,57,70,0.4);
+  border-radius:8px; padding:6px 10px; text-align:center;
+  flex-shrink:0;
+}
+#svs-badge .val { color:#ff6b6b; font-size:18px; font-weight:800; font-family:monospace; line-height:1; }
+#svs-badge .lbl { color:rgba(255,107,107,0.7); font-size:8px; font-family:monospace; }
+
+#info-panel {
+  display:none; position:fixed;
+  bottom:110px; left:10px; right:10px; z-index:15;
+  background:rgba(1,10,22,0.95);
+  border:1px solid rgba(0,200,160,0.3);
+  border-radius:16px; padding:16px 18px;
+  backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  animation:slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+#info-panel .close-btn {
+  float:right; color:rgba(150,180,220,0.6);
+  font-size:22px; cursor:pointer; line-height:1; margin-left:10px;
+}
+#info-panel h3 { color:#00dcb4; font-size:13px; font-weight:700; margin-bottom:7px; font-family:sans-serif; }
+#info-panel p  { color:rgba(160,190,220,0.9); font-size:12px; line-height:1.65; font-family:sans-serif; }
 </style>
 </head>
 <body>
 
-<!-- TITLE SCREEN -->
-<div id="title-screen">
-  <div class="logo">🏗️</div>
-  <h1>Sector Vulnerability<br>Scanner</h1>
-  <p>AI-powered financial risk detection<br>using labor markets, SEC filings &amp; market signals</p>
-  <div style="margin-bottom:20px">
-    <span class="mini-badge">3 AI Agents</span>
-    <span class="mini-badge">SVS Formula</span>
-    <span class="mini-badge">Basel IV</span>
+<!-- TITLE -->
+<div id="overlay">
+  <div class="glow-ring">
+    <svg viewBox="0 0 52 52" fill="none">
+      <circle cx="26" cy="26" r="20" stroke="rgba(0,220,180,0.6)" stroke-width="1.5"/>
+      <path d="M26 6 L26 46 M6 26 L46 26" stroke="rgba(0,220,180,0.3)" stroke-width="1"/>
+      <circle cx="26" cy="26" r="5" fill="rgba(0,220,180,0.8)"/>
+      <circle cx="26" cy="6"  r="2.5" fill="#00dcb4"/>
+      <circle cx="26" cy="46" r="2.5" fill="#00dcb4"/>
+      <circle cx="6"  cy="26" r="2.5" fill="#0af"/>
+      <circle cx="46" cy="26" r="2.5" fill="#0af"/>
+    </svg>
   </div>
-  <button id="start-btn" onclick="startExperience()">▶ Explore Architecture</button>
-  <p style="margin-top:16px;font-size:11px;color:#3d5a80">Drag to rotate · Tap any layer for details</p>
+  <h1>Sector Vulnerability<br>Scanner</h1>
+  <p class="sub">Real-time AI risk detection through labor signals, SEC filings &amp; market intelligence</p>
+  <div class="tags">
+    <span class="tag">3 AI AGENTS</span>
+    <span class="tag">SVS FORMULA</span>
+    <span class="tag">BASEL IV</span>
+    <span class="tag">LIVE FLOW</span>
+  </div>
+  <button id="start" onclick="launch()">◈ Launch Hologram</button>
 </div>
 
+<!-- CANVAS -->
 <canvas id="c"></canvas>
 
-<div id="ui">
-  <div id="hint">
-    <h3>🏗️ SVS Architecture — 3D Explorer</h3>
-    <p>Drag to rotate · Pinch to zoom · Tap any layer</p>
-    <div class="badge" id="badge-text">Drag to explore</div>
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-box">
+    <div class="hud-dot"></div>
+    <div id="hud-text">
+      <h4>SVS Architecture — Live Data Flow</h4>
+      <p>Drag · Pinch to zoom · Tap any node</p>
+    </div>
+    <div id="svs-badge">
+      <div class="val">7.9</div>
+      <div class="lbl">ALERT</div>
+    </div>
   </div>
 </div>
 
-<div id="popup">
-  <span class="x" onclick="closePopup()">×</span>
-  <h3 id="pop-title"></h3>
-  <p id="pop-desc"></p>
+<!-- INFO PANEL -->
+<div id="info-panel">
+  <span class="close-btn" onclick="closeInfo()">×</span>
+  <h3 id="inf-title"></h3>
+  <p  id="inf-desc"></p>
 </div>
 
 <script>
-// ── DATA ──────────────────────────────────────────────────
-const LAYERS = [
-  {
-    label:'DATA SOURCES', sublabel:'Layer 01',
-    color:[0,201,167], y:-220,
-    cards:[
-      {label:'JOB\nPOSTINGS',   sub:'LinkedIn · Indeed', c:[0,201,167]},
-      {label:'10-K\nFILINGS',   sub:'SEC.gov', c:[111,168,255]},
-      {label:'MARKET\nDATA',    sub:'Yahoo Finance', c:[245,166,35]}
-    ],
-    info:{
-      title:'📊 Layer 1 — Data Sources',
-      desc:'Three public real-time data streams. Job postings track AI-replaceable role drops. SEC 10-K filings detect AI adoption language spikes. Yahoo Finance flags volume spikes without price movement — the smart money exit signal.'
-    }
-  },
-  {
-    label:'AI AGENTS', sublabel:'Layer 02',
-    color:[111,168,255], y:-80,
-    cards:[
-      {label:'LABOR\nAGENT',    sub:'w=0.40 · Score: 8.2', c:[0,201,167]},
-      {label:'DOCUMENT\nAGENT', sub:'w=0.35 · Score: 7.9', c:[111,168,255]},
-      {label:'MARKET\nAGENT',   sub:'w=0.25 · Score: 6.8', c:[245,166,35]}
-    ],
-    info:{
-      title:'🤖 Layer 2 — AI Agents',
-      desc:'Three specialized LLM agents each output a disruption score 0–10. Labor Agent (weight 0.40) is earliest signal. Document Agent (0.35) most reliable. Market Agent (0.25) is latest signal. Each agent uses a targeted LLM prompt on its data source.'
-    }
-  },
-  {
-    label:'SVS SCORE', sublabel:'Layer 03',
-    color:[245,166,35], y:60,
-    cards:[
-      {label:'SVS\n7.9', sub:'🔴 SECTOR ALERT', c:[230,57,70]}
-    ],
-    info:{
-      title:'⚡ SVS Score — 7.9 · ALERT',
-      desc:'SVS = (8.2 × 0.40) + (7.9 × 0.35) + (6.8 × 0.25) = 7.9\n\nThreshold: SVS > 7.0 → Sector Alert 🔴\nThreshold: SVS > 8.5 → Critical Warning 🚨\n\nSaaS sector is currently in the danger zone.'
-    }
-  },
-  {
-    label:'ALERT SYSTEM', sublabel:'Layer 04',
-    color:[230,57,70], y:190,
-    cards:[
-      {label:'⚠ >7.0\nALERT',     sub:'Watch list', c:[249,194,46]},
-      {label:'🔴 >8.5\nCRITICAL', sub:'Basel IV P2', c:[230,57,70]}
-    ],
-    info:{
-      title:'🚨 Layer 4 — Alert System',
-      desc:'Automated threshold monitoring. SVS > 7.0 activates Sector Alert: reduce exposure 30%, increase capital buffer, activate watch list.\n\nSVS > 8.5 triggers Critical Warning: immediate supervisory notification + Basel IV Pillar 2 escalation.'
-    }
-  },
-  {
-    label:'PREVENTION', sublabel:'Layer 05',
-    color:[26,110,245], y:320,
-    cards:[
-      {label:'📉 REDUCE\nEXPOSURE', sub:'−30%', c:[26,110,245]},
-      {label:'🏦 CAPITAL\nBUFFER',  sub:'Increase', c:[26,110,245]},
-      {label:'🏛️ REG\nFLAG',       sub:'Pillar 2', c:[26,110,245]}
-    ],
-    info:{
-      title:'🛡️ Layer 5 — Prevention Actions',
-      desc:'Three automated prevention actions triggered by SVS thresholds:\n\n1. Reduce sector portfolio exposure by 30%\n2. Raise capital buffer provisions (Basel IV)\n3. Flag for supervisory stress test (Pillar 2)\n\nAll actions fire automatically when SVS crosses 7.0.'
-    }
-  }
-];
-
-// ── CANVAS SETUP ──────────────────────────────────────────
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const C = document.getElementById('c');
+const ctx = C.getContext('2d');
 let W, H, cx, cy;
-
 function resize() {
-  W = canvas.width  = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  W = C.width = window.innerWidth;
+  H = C.height = window.innerHeight;
   cx = W/2; cy = H/2;
 }
 resize();
 window.addEventListener('resize', resize);
 
-// ── CAMERA STATE ─────────────────────────────────────────
-let rotX = -0.18, rotY = 0.25;
-let zoom = 1;
-let autoRotate = true;
-let started = false;
-let time = 0;
+// ── SCENE STATE ──────────────────────────────────────────
+let started = false, time = 0;
+let rotY = 0.3, rotX = -0.2, zoom = 1;
+let drag = false, lx = 0, ly = 0;
+let autoRot = true;
 
-// ── TOUCH / MOUSE ────────────────────────────────────────
-let drag = false, lastX = 0, lastY = 0;
-let pinchDist0 = 0, zoom0 = 1;
+// ── INPUT ────────────────────────────────────────────────
+C.addEventListener('mousedown',  e=>{drag=true;autoRot=false;lx=e.clientX;ly=e.clientY;});
+C.addEventListener('mousemove',  e=>{if(!drag)return;rotY+=(e.clientX-lx)*0.007;rotX+=(e.clientY-ly)*0.007;rotX=Math.max(-0.7,Math.min(0.7,rotX));lx=e.clientX;ly=e.clientY;});
+C.addEventListener('mouseup',    ()=>drag=false);
+C.addEventListener('mouseleave', ()=>drag=false);
+let pd=0,pz=1;
+C.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){drag=true;autoRot=false;lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
+  else if(e.touches.length===2){drag=false;pd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);pz=zoom;}
+},{passive:true});
+C.addEventListener('touchmove',e=>{
+  if(e.touches.length===1&&drag){rotY+=(e.touches[0].clientX-lx)*0.007;rotX+=(e.touches[0].clientY-ly)*0.007;rotX=Math.max(-0.7,Math.min(0.7,rotX));lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
+  else if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom=Math.max(0.5,Math.min(2.8,pz*(d/pd)));}
+},{passive:true});
+C.addEventListener('touchend',()=>drag=false);
+C.addEventListener('click',handleTap);
 
-function pointerDown(x, y) {
-  drag = true; autoRotate = false;
-  lastX = x; lastY = y;
+// ── 3D PROJECTION ────────────────────────────────────────
+const FOV=650;
+function rot(x,y,z){
+  const cy2=Math.cos(rotY),sy=Math.sin(rotY);
+  const x1=x*cy2+z*sy, z1=-x*sy+z*cy2;
+  const cx2=Math.cos(rotX),sx=Math.sin(rotX);
+  const y1=y*cx2-z1*sx, z2=y*sx+z1*cx2;
+  return{x:x1*zoom,y:y1*zoom,z:z2*zoom};
 }
-function pointerMove(x, y) {
-  if (!drag) return;
-  rotY += (x - lastX) * 0.008;
-  rotX += (y - lastY) * 0.008;
-  rotX = Math.max(-0.9, Math.min(0.9, rotX));
-  lastX = x; lastY = y;
+function proj(x,y,z){
+  const r=rot(x,y,z);
+  const s=FOV/(FOV+r.z+500);
+  return{x:cx+r.x*s, y:cy+r.y*s, s, z:r.z};
 }
-function pointerUp() { drag = false; }
 
-canvas.addEventListener('mousedown',  e => pointerDown(e.clientX, e.clientY));
-canvas.addEventListener('mousemove',  e => pointerMove(e.clientX, e.clientY));
-canvas.addEventListener('mouseup',    pointerUp);
-canvas.addEventListener('mouseleave', pointerUp);
-
-canvas.addEventListener('touchstart', e => {
-  if (e.touches.length === 1) {
-    pointerDown(e.touches[0].clientX, e.touches[0].clientY);
-  } else if (e.touches.length === 2) {
-    drag = false;
-    pinchDist0 = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    zoom0 = zoom;
+// ── LAYER DEFINITIONS ────────────────────────────────────
+const LAYERS=[
+  {
+    id:'sources', y:-230, label:'DATA SOURCES', num:'01',
+    col:[0,220,180], hcol:'#00dcb4',
+    nodes:[
+      {x:-150,label:'JOB\nPOSTINGS',sub:'LinkedIn·Indeed·Glassdoor',col:[0,220,180],
+       info:{t:'👔 Labor Signal — Job Postings',d:'Collects monthly job posting counts per sector for AI-replaceable roles: data entry, customer service, HR, accounting. A sharp drop signals companies are replacing humans with AI agents — SaaS cancellations follow within 1–2 quarters.'}},
+      {x:0,   label:'10-K\nFILINGS', sub:'SEC.gov Annual Reports',col:[100,160,255],
+       info:{t:'📄 Document Signal — SEC Filings',d:'Scrapes and parses annual 10-K filings from SEC.gov. Counts frequency of AI adoption keywords vs. SaaS dependency language. Rising AI mentions = internal disruption accelerating. This is the most reliable signal.'}},
+      {x:150, label:'MARKET\nDATA',   sub:'Yahoo Finance API',col:[245,166,35],
+       info:{t:'📈 Market Signal — Price & Volume',d:'Pulls real-time SaaS stock prices + trading volume. Detects the smart money signal: volume spikes WITHOUT price movement = institutional investors quietly exiting. Formula: (Volume spike% × 0.6) + (Price volatility × 0.4).'}}
+    ]
+  },
+  {
+    id:'agents', y:-70, label:'AI AGENTS', num:'02',
+    col:[100,160,255], hcol:'#6fa8ff',
+    nodes:[
+      {x:-150,label:'LABOR\nAGENT',   sub:'Weight: 0.40 | Score: 8.2',col:[0,220,180],
+       info:{t:'🧑‍💼 Labor Agent — Score 8.2/10',d:'LLM prompt: "Given job posting trends for sector X, score the likelihood AI is replacing human workers. 0=no disruption, 10=mass replacement." Weight 0.40 — highest weight because labor signals are the EARLIEST indicator of disruption.'}},
+      {x:0,   label:'DOCUMENT\nAGENT',sub:'Weight: 0.35 | Score: 7.9',col:[100,160,255],
+       info:{t:'📄 Document Agent — Score 7.9/10',d:'LLM prompt: "Read this company report. Score how aggressively this company is replacing software subscriptions with AI. 0=no adoption, 10=full replacement." Weight 0.35 — highest reliability, medium weight.'}},
+      {x:150, label:'MARKET\nAGENT',  sub:'Weight: 0.25 | Score: 6.8',col:[245,166,35],
+       info:{t:'📊 Market Agent — Score 6.8/10',d:'Algorithmic formula: (Volume spike% × 0.6) + (Price volatility × 0.4). Weight 0.25 — lowest weight because market signals are LAGGING indicators. By the time markets react, disruption is already advanced.'}}
+    ]
+  },
+  {
+    id:'svs', y:80, label:'SVS SCORE', num:'03',
+    col:[230,57,70], hcol:'#e63946',
+    nodes:[
+      {x:0,label:'SVS\n7.9',sub:'🔴 SECTOR ALERT',col:[230,57,70],big:true,
+       info:{t:'⚡ SVS = 7.9 — Sector Alert 🔴',d:'SVS = (8.2 × 0.40) + (7.9 × 0.35) + (6.8 × 0.25)\n   = 3.28 + 2.765 + 1.70 = 7.74 ≈ 7.9\n\nThresholds:\n• SVS > 7.0 → Sector Alert 🔴\n• SVS > 8.5 → Critical Warning 🚨\n\nSaaS sector is currently in the danger zone. Prevention actions triggered.'}}
+    ]
+  },
+  {
+    id:'alert', y:210, label:'ALERT SYSTEM', num:'04',
+    col:[249,194,46], hcol:'#f9c22e',
+    nodes:[
+      {x:-80,label:'⚠ >7.0\nALERT',   sub:'Watch list activated',col:[249,194,46],
+       info:{t:'⚠️ Alert Threshold — SVS > 7.0',d:'When SVS crosses 7.0 the Alert fires:\n• Sector added to watch list\n• Capital buffer review initiated\n• 30-day monitoring window opens\n• Portfolio manager notified automatically'}},
+      {x:80, label:'🔴 >8.5\nCRITICAL',sub:'Basel IV Pillar 2',col:[230,57,70],
+       info:{t:'🔴 Critical Threshold — SVS > 8.5',d:'When SVS crosses 8.5 the Critical Warning fires:\n• Immediate supervisory notification\n• Stress test initiation\n• Basel IV Pillar 2 escalation\n• Exposure reduction mandate: −40%'}}
+    ]
+  },
+  {
+    id:'prev', y:340, label:'PREVENTION', num:'05',
+    col:[26,110,245], hcol:'#1a6ef5',
+    nodes:[
+      {x:-150,label:'📉 REDUCE\nEXPOSURE',sub:'−30% sector weight',col:[26,110,245],
+       info:{t:'📉 Action 1 — Reduce Exposure',d:'Automatically reduce portfolio weight in flagged sector by 30%. Triggered when SVS > 7.0. Prevents compounding losses as AI disruption accelerates through the sector.'}},
+      {x:0,   label:'🏦 CAPITAL\nBUFFER',  sub:'Basel IV Pillar 2',col:[26,110,245],
+       info:{t:'🏦 Action 2 — Capital Buffer',d:'Increase capital provisions per Basel IV framework. Pillar 2 allows supervisors to require additional capital for risks not covered by Pillar 1. SVS provides the quantitative justification for this requirement.'}},
+      {x:150, label:'🏛️ REG\nFLAG',       sub:'Supervisory review',col:[26,110,245],
+       info:{t:'🏛️ Action 3 — Regulatory Flag',d:'Trigger supervisory notification and stress test. The SVS score and its three sub-scores provide full explainability (XAI) for the regulatory report — each agent output is auditable and traceable to its source data.'}}
+    ]
   }
-}, {passive:true});
+];
 
-canvas.addEventListener('touchmove', e => {
-  if (e.touches.length === 1) {
-    pointerMove(e.touches[0].clientX, e.touches[0].clientY);
-  } else if (e.touches.length === 2) {
-    const d = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    zoom = Math.max(0.5, Math.min(2.5, zoom0 * (d / pinchDist0)));
-  }
-}, {passive:true});
-
-canvas.addEventListener('touchend', pointerUp);
-
-// ── TAP TO SHOW INFO ─────────────────────────────────────
-let tappedLayer = null;
-canvas.addEventListener('click', e => {
-  const mx = e.clientX, my = e.clientY;
-  // Find which layer was tapped by checking projected positions
-  for (const lyr of LAYERS) {
-    const p = project3D(0, lyr.y, 0);
-    if (Math.abs(mx - p.x) < 180*p.s && Math.abs(my - p.y) < 55*p.s) {
-      showPopup(lyr.info.title, lyr.info.desc);
-      return;
-    }
-  }
-});
-
-// ── 3D MATH ──────────────────────────────────────────────
-function rotatePoint(x, y, z) {
-  // rotate around Y
-  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-  let x1 = x*cosY + z*sinY;
-  let z1 = -x*sinY + z*cosY;
-  // rotate around X
-  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-  let y1 = y*cosX - z1*sinX;
-  let z2 = y*sinX + z1*cosX;
-  return {x:x1, y:y1, z:z2};
+// ── PARTICLES (data flow) ─────────────────────────────────
+const PARTICLES=[];
+function spawnParticle(fromLayer, toLayer, fromNode, toNode){
+  const fn=fromLayer.nodes[fromNode]||fromLayer.nodes[0];
+  const tn=toLayer.nodes[toNode]||toLayer.nodes[0];
+  PARTICLES.push({
+    fx:fn.x, fy:fromLayer.y, tx:tn.x, ty:toLayer.y,
+    t:Math.random(), speed:0.004+Math.random()*0.004,
+    col:fn.col, r:2+Math.random()*2, alpha:1, trail:[]
+  });
 }
 
-const FOV = 700;
-function project3D(x, y, z) {
-  const r = rotatePoint(x * zoom, y * zoom, z * zoom);
-  const s = FOV / (FOV + r.z + 600);
-  return { x: cx + r.x * s, y: cy + r.y * s, s };
+// Pre-spawn lots of particles along every connection
+function initParticles(){
+  // sources → agents (3 direct connections)
+  for(let i=0;i<3;i++){
+    for(let k=0;k<6;k++) spawnParticle(LAYERS[0],LAYERS[1],i,i);
+  }
+  // agents → svs (all converge to center)
+  for(let i=0;i<3;i++){
+    for(let k=0;k<5;k++) spawnParticle(LAYERS[1],LAYERS[2],i,0);
+  }
+  // svs → alert (fan out)
+  for(let i=0;i<2;i++){
+    for(let k=0;k<4;k++) spawnParticle(LAYERS[2],LAYERS[3],0,i);
+  }
+  // alert → prevention
+  for(let i=0;i<3;i++){
+    for(let k=0;k<4;k++) spawnParticle(LAYERS[3],LAYERS[4],i%2,i);
+  }
 }
+
+// ── STARS ────────────────────────────────────────────────
+const STARS=Array.from({length:200},()=>({
+  x:(Math.random()-0.5)*1800, y:(Math.random()-0.5)*1800,
+  z:-600+Math.random()*200, r:0.4+Math.random()*1.2,
+  a:0.15+Math.random()*0.5
+}));
 
 // ── DRAW HELPERS ─────────────────────────────────────────
-function rr(x, y, w, h, r) {
+function rr(x,y,w,h,r){
   ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
   ctx.closePath();
 }
 
-function drawCard(x3, y3, z3, w, h, color, label, sub) {
-  const p = project3D(x3, y3, z3);
-  const pw = w * p.s, ph = h * p.s;
-  const px = p.x - pw/2, py = p.y - ph/2;
-  const [r,g,b] = color;
+function drawNode(node, ly, bob, isBig){
+  const W2=isBig?130:108, H2=isBig?96:82;
+  const p=proj(node.x, ly+bob, 0);
+  const pw=W2*p.s, ph=H2*p.s;
+  const px=p.x-pw/2, py=p.y-ph/2;
+  const [r,g,b]=node.col;
 
-  ctx.shadowColor = `rgba(${r},${g},${b},0.55)`;
-  ctx.shadowBlur = 18 * p.s;
+  // outer glow
+  ctx.shadowColor=`rgba(${r},${g},b,0.6)`.replace('b',b);
+  ctx.shadowBlur=isBig?28*p.s:18*p.s;
 
-  // body
-  ctx.fillStyle = `rgba(8,20,44,0.92)`;
-  rr(px, py, pw, ph, 9*p.s); ctx.fill();
+  // glass body
+  const grad=ctx.createLinearGradient(px,py,px,py+ph);
+  grad.addColorStop(0,`rgba(${r},${g},${b},0.12)`);
+  grad.addColorStop(1,`rgba(${r},${g},${b},0.04)`);
+  ctx.fillStyle=grad;
+  rr(px,py,pw,ph,10*p.s); ctx.fill();
 
-  // top bar
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = `rgba(${r},${g},${b},0.95)`;
-  rr(px, py, pw, 3.5*p.s, 2*p.s); ctx.fill();
+  // top glowing bar
+  ctx.shadowBlur=0;
+  const barGrad=ctx.createLinearGradient(px,py,px+pw,py);
+  barGrad.addColorStop(0,`rgba(${r},${g},${b},0)`);
+  barGrad.addColorStop(0.3,`rgba(${r},${g},${b},1)`);
+  barGrad.addColorStop(0.7,`rgba(${r},${g},${b},1)`);
+  barGrad.addColorStop(1,`rgba(${r},${g},${b},0)`);
+  ctx.fillStyle=barGrad;
+  rr(px,py,pw,3.5*p.s,2*p.s); ctx.fill();
 
   // border
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.45)`;
-  ctx.lineWidth = p.s;
-  rr(px, py, pw, ph, 9*p.s); ctx.stroke();
+  ctx.strokeStyle=`rgba(${r},${g},${b},0.35)`;
+  ctx.lineWidth=p.s*0.8;
+  rr(px,py,pw,ph,10*p.s); ctx.stroke();
+
+  // shine line (top-left)
+  ctx.strokeStyle=`rgba(255,255,255,0.06)`;
+  ctx.lineWidth=p.s;
+  rr(px+p.s,py+p.s,pw-2*p.s,ph-2*p.s,9*p.s); ctx.stroke();
 
   // label
-  const lines = label.split('\n');
-  const fs = Math.max(8, 12 * p.s);
-  ctx.font = `700 ${fs}px sans-serif`;
-  ctx.fillStyle = `rgb(${r},${g},${b})`;
-  ctx.textAlign = 'center';
-  const lh = fs * 1.35;
-  lines.forEach((ln, i) => {
-    ctx.fillText(ln, p.x, py + ph*0.32 + i*lh + lh);
-  });
+  const lines=node.label.split('\n');
+  const fs=Math.max(9,(isBig?15:12)*p.s);
+  ctx.font=`800 ${fs}px 'Helvetica Neue',sans-serif`;
+  ctx.fillStyle=`rgb(${r},${g},${b})`;
+  ctx.textAlign='center';
+  const lh=fs*1.3;
+  const ty=py+ph*(isBig?0.28:0.3)+lh;
+  lines.forEach((ln,i)=>ctx.fillText(ln,p.x,ty+i*lh));
 
   // sub
-  const sfs = Math.max(7, 9.5 * p.s);
-  ctx.font = `400 ${sfs}px sans-serif`;
-  ctx.fillStyle = 'rgba(150,175,210,0.85)';
-  ctx.fillText(sub, p.x, py + ph - 7*p.s);
+  const sfs=Math.max(7,(isBig?9:8.5)*p.s);
+  ctx.font=`400 ${sfs}px 'Helvetica Neue',sans-serif`;
+  ctx.fillStyle=`rgba(160,190,225,0.75)`;
+  ctx.fillText(node.sub,p.x,py+ph-8*p.s);
+
+  // store screen pos for tap detection
+  node._px=px; node._py=py; node._pw=pw; node._ph=ph;
 }
 
-function drawLayerBg(y3, color, label, sublabel) {
-  const pL = project3D(-200, y3, 0);
-  const pR = project3D( 200, y3, 0);
-  const [r,g,b] = color;
+function drawLayerHeader(lyr, bob){
+  const pL=proj(-210,lyr.y+bob,0);
+  const pR=proj( 210,lyr.y+bob,0);
+  const [r,g,b]=lyr.col;
+  const pulse=Math.sin(time*2.5)*0.5+0.5;
 
-  // separator line
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.22)`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pL.x, pL.y - 40*pL.s);
-  ctx.lineTo(pR.x, pR.y - 40*pR.s);
-  ctx.stroke();
+  // line
+  ctx.strokeStyle=`rgba(${r},${g},${b},0.18)`;
+  ctx.lineWidth=0.8;
+  ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.moveTo(pL.x,pL.y-45*pL.s);ctx.lineTo(pR.x,pR.y-45*pR.s);ctx.stroke();
+  ctx.setLineDash([]);
 
-  // sublabel
-  const sfs = Math.max(7, 9 * pL.s);
-  ctx.font = `600 ${sfs}px monospace`;
-  ctx.fillStyle = `rgba(${r},${g},${b},0.5)`;
-  ctx.textAlign = 'left';
-  ctx.fillText(sublabel, pL.x, pL.y - 44*pL.s);
+  // num
+  const nfs=Math.max(7,9*pL.s);
+  ctx.font=`600 ${nfs}px monospace`;
+  ctx.fillStyle=`rgba(${r},${g},${b},0.5)`;
+  ctx.textAlign='left';
+  ctx.fillText(lyr.num,pL.x,pL.y-48*pL.s);
 
   // label
-  const fs = Math.max(9, 12 * pL.s);
-  ctx.font = `700 ${fs}px sans-serif`;
-  ctx.fillStyle = `rgba(${r},${g},${b},0.85)`;
-  ctx.fillText(label, pL.x + sfs*3.5, pL.y - 44*pL.s);
+  const lfs=Math.max(9,11*pL.s);
+  ctx.font=`800 ${lfs}px 'Helvetica Neue',sans-serif`;
+  ctx.fillStyle=`rgba(${r},${g},${b},0.9)`;
+  ctx.fillText(lyr.label,pL.x+nfs*2.8,pL.y-48*pL.s);
 
   // pulse dot
-  const pulse = (Math.sin(time*2.5) * 0.5 + 0.5);
   ctx.beginPath();
-  ctx.arc(pL.x + sfs*0.5, pL.y - 47*pL.s, 3.5*pL.s, 0, Math.PI*2);
-  ctx.fillStyle = `rgba(${r},${g},${b},${0.3 + pulse*0.7})`;
+  ctx.arc(pL.x+nfs*0.8,pL.y-51*pL.s,3.5*pL.s,0,Math.PI*2);
+  ctx.fillStyle=`rgba(${r},${g},${b},${0.3+pulse*0.7})`;
+  ctx.shadowColor=`rgba(${r},${g},${b},0.8)`;
+  ctx.shadowBlur=6;
   ctx.fill();
+  ctx.shadowBlur=0;
 }
 
-function drawConnector(y1, y2, color) {
-  const p1 = project3D(0, y1, 0);
-  const p2 = project3D(0, y2, 0);
-  const [r,g,b] = color;
-  const grad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
-  grad.addColorStop(0, `rgba(${r},${g},${b},0.5)`);
-  grad.addColorStop(1, `rgba(${r},${g},${b},0.1)`);
-  ctx.strokeStyle = grad;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y + 40*p1.s);
-  ctx.lineTo(p2.x, p2.y - 40*p2.s);
-  ctx.stroke();
+function drawConnectorBeam(x1,y1,x2,y2,col){
+  const p1=proj(x1,y1,0), p2=proj(x2,y2,0);
+  const [r,g,b]=col;
+  const grad=ctx.createLinearGradient(p1.x,p1.y,p2.x,p2.y);
+  grad.addColorStop(0,`rgba(${r},${g},${b},0.4)`);
+  grad.addColorStop(0.5,`rgba(${r},${g},${b},0.15)`);
+  grad.addColorStop(1,`rgba(${r},${g},${b},0.4)`);
+  ctx.strokeStyle=grad;
+  ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
 }
 
-// ── STAR BACKGROUND ──────────────────────────────────────
-const stars = Array.from({length:120}, () => ({
-  x: Math.random()*2000 - 1000,
-  y: Math.random()*2000 - 1000,
-  r: Math.random()*1.5 + 0.3,
-  a: Math.random()*0.6 + 0.1
-}));
+function drawParticles(){
+  for(let i=PARTICLES.length-1;i>=0;i--){
+    const p=PARTICLES[i];
+    p.t+=p.speed;
+    if(p.t>=1){p.t=0;} // loop
 
-function drawStars() {
-  for (const s of stars) {
-    const p = project3D(s.x, s.y, -500);
+    const t=p.t;
+    const x=p.fx+(p.tx-p.fx)*t;
+    const y=p.fy+(p.ty-p.fy)*t;
+    const pt=proj(x,y,0);
+    const [r,g,b]=p.col;
+
+    // tail
+    for(let j=1;j<=5;j++){
+      const tt=Math.max(0,t-j*0.025);
+      const tx2=p.fx+(p.tx-p.fx)*tt;
+      const ty2=p.fy+(p.ty-p.fy)*tt;
+      const pt2=proj(tx2,ty2,0);
+      ctx.beginPath();
+      ctx.arc(pt2.x,pt2.y,(p.r-j*0.3)*pt2.s,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${r},${g},${b},${0.15-j*0.025})`;
+      ctx.fill();
+    }
+
+    // head
+    ctx.shadowColor=`rgba(${r},${g},${b},0.9)`;
+    ctx.shadowBlur=8*pt.s;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, s.r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(180,210,255,${s.a})`;
+    ctx.arc(pt.x,pt.y,p.r*pt.s,0,Math.PI*2);
+    ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;
     ctx.fill();
+    ctx.shadowBlur=0;
   }
 }
 
-// ── GRID FLOOR ───────────────────────────────────────────
-function drawGrid() {
-  const gridY = 420;
-  ctx.globalAlpha = 0.08;
-  for (let i = -4; i <= 4; i++) {
-    const pA = project3D(i*60, gridY, -300);
-    const pB = project3D(i*60, gridY,  300);
-    ctx.strokeStyle = '#1a6ef5';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.moveTo(pA.x,pA.y); ctx.lineTo(pB.x,pB.y); ctx.stroke();
-    const pC = project3D(-300, gridY, i*60);
-    const pD = project3D( 300, gridY, i*60);
-    ctx.beginPath(); ctx.moveTo(pC.x,pC.y); ctx.lineTo(pD.x,pD.y); ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
+function drawSVSRings(){
+  const svsLyr=LAYERS[2];
+  const bob=Math.sin(time*1.0+2*0.7)*6;
+  const pt=proj(0,svsLyr.y+bob,0);
+  const pulse=Math.sin(time*2.5)*0.5+0.5;
+  const pulse2=Math.sin(time*1.8+1)*0.5+0.5;
+
+  [1.6,1.3,1.0].forEach((mult,i)=>{
+    const a=[0.08+pulse*0.12, 0.12+pulse2*0.15, 0.2+pulse*0.2][i];
+    const col=[[230,57,70],[245,100,50],[255,140,0]][i];
+    ctx.beginPath();
+    ctx.arc(pt.x,pt.y,mult*90*pt.s,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},${a})`;
+    ctx.lineWidth=(i===2?2:1)*pt.s;
+    ctx.stroke();
+  });
 }
 
-// ── RENDER ───────────────────────────────────────────────
-function render(ts) {
-  if (!started) { requestAnimationFrame(render); return; }
-  time = ts * 0.001;
+function drawGrid(){
+  const gy=440;
+  ctx.globalAlpha=0.06;
+  for(let i=-5;i<=5;i++){
+    const pA=proj(i*70,gy,-320),pB=proj(i*70,gy,320);
+    const pC=proj(-320,gy,i*70),pD=proj(320,gy,i*70);
+    ctx.strokeStyle='#1a6ef5';ctx.lineWidth=0.7;
+    ctx.beginPath();ctx.moveTo(pA.x,pA.y);ctx.lineTo(pB.x,pB.y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pC.x,pC.y);ctx.lineTo(pD.x,pD.y);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
 
-  if (autoRotate) {
-    rotY = Math.sin(time * 0.18) * 0.45;
-    rotX = -0.15 + Math.sin(time * 0.11) * 0.05;
+// ── RENDER LOOP ───────────────────────────────────────────
+function frame(ts){
+  if(!started){requestAnimationFrame(frame);return;}
+  time=ts*0.001;
+
+  if(autoRot&&!drag){
+    rotY=0.25+Math.sin(time*0.15)*0.5;
+    rotX=-0.15+Math.sin(time*0.09)*0.06;
   }
 
-  // BG gradient
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#060c1a');
-  bg.addColorStop(1, '#0a1628');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  // BG
+  ctx.fillStyle='#010812';
+  ctx.fillRect(0,0,W,H);
 
-  drawStars();
+  // Stars
+  for(const s of STARS){
+    const p=proj(s.x,s.y,s.z);
+    ctx.beginPath();ctx.arc(p.x,p.y,s.r*p.s,0,Math.PI*2);
+    ctx.fillStyle=`rgba(180,210,255,${s.a})`;ctx.fill();
+  }
+
   drawGrid();
 
-  // Connectors
-  for (let i = 0; i < LAYERS.length-1; i++) {
-    const la = LAYERS[i], lb = LAYERS[i+1];
-    const midColor = la.color.map((c,j) => Math.round((c + lb.color[j])/2));
-    drawConnector(la.y + 40, lb.y - 40, midColor);
-  }
+  // Connector beams between layers
+  const connections=[
+    [LAYERS[0],LAYERS[1],[-150,-150],[0,0],[150,150]],
+  ];
+  LAYERS[0].nodes.forEach((n,i)=>{
+    const tn=LAYERS[1].nodes[i];
+    drawConnectorBeam(n.x,LAYERS[0].y,tn.x,LAYERS[1].y,n.col);
+  });
+  LAYERS[1].nodes.forEach((n)=>{
+    drawConnectorBeam(n.x,LAYERS[1].y,0,LAYERS[2].y,n.col);
+  });
+  LAYERS[2].nodes.forEach((n)=>{
+    LAYERS[3].nodes.forEach((tn)=>drawConnectorBeam(n.x,LAYERS[2].y,tn.x,LAYERS[3].y,[200,100,50]));
+  });
+  LAYERS[3].nodes.forEach((n,i)=>{
+    LAYERS[4].nodes.forEach((tn)=>drawConnectorBeam(n.x,LAYERS[3].y,tn.x,LAYERS[4].y,n.col));
+  });
 
-  // Layers
-  LAYERS.forEach((lyr, li) => {
-    const bob = Math.sin(time * 1.0 + li * 0.7) * 6;
-    const y = lyr.y + bob;
+  // Particles
+  drawParticles();
 
-    drawLayerBg(y, lyr.color, lyr.label, lyr.sublabel);
+  // SVS rings
+  drawSVSRings();
 
-    const n = lyr.cards.length;
-    const spacing = n === 1 ? 0 : n === 2 ? 140 : 140;
-    lyr.cards.forEach((card, ci) => {
-      const x = (ci - (n-1)/2) * spacing;
-      const cardBob = Math.sin(time * 1.4 + li * 0.7 + ci * 0.5) * 3;
-      drawCard(x, y + cardBob, 0, 118, 88, card.c, card.label, card.sub);
+  // Layers — draw back to front by projected Z
+  const sorted=[...LAYERS].sort((a,b)=>{
+    const pa=proj(0,a.y,0), pb=proj(0,b.y,0);
+    return pa.z-pb.z;
+  });
+
+  sorted.forEach((lyr,li)=>{
+    const bob=Math.sin(time*0.9+li*0.8)*6;
+    drawLayerHeader(lyr,bob);
+    lyr.nodes.forEach(node=>{
+      drawNode(node,lyr.y,bob+Math.sin(time*1.3+node.x*0.01)*3,node.big);
     });
   });
 
-  // SVS glow ring
-  const svsLayer = LAYERS[2];
-  const bob = Math.sin(time * 1.0 + 2 * 0.7) * 6;
-  const svsPt = project3D(0, svsLayer.y + bob, 0);
-  const pulse = Math.sin(time * 2) * 0.5 + 0.5;
-  ctx.beginPath();
-  ctx.arc(svsPt.x, svsPt.y, 95*svsPt.s, 0, Math.PI*2);
-  ctx.strokeStyle = `rgba(230,57,70,${0.15 + pulse*0.25})`;
-  ctx.lineWidth = 2.5*svsPt.s;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(svsPt.x, svsPt.y, 115*svsPt.s, 0, Math.PI*2);
-  ctx.strokeStyle = `rgba(245,166,35,${0.08 + pulse*0.12})`;
-  ctx.lineWidth = 1.5*svsPt.s;
-  ctx.stroke();
-
-  requestAnimationFrame(render);
+  requestAnimationFrame(frame);
 }
-requestAnimationFrame(render);
+requestAnimationFrame(frame);
 
-// ── START ────────────────────────────────────────────────
-function startExperience() {
-  const ts = document.getElementById('title-screen');
-  ts.style.opacity = '0';
-  setTimeout(() => { ts.style.display = 'none'; started = true; }, 600);
-  document.getElementById('badge-text').textContent = '✓ Tap any layer for details';
+// ── TAP ──────────────────────────────────────────────────
+function handleTap(e){
+  if(!started)return;
+  const mx=e.clientX||e.touches?.[0]?.clientX;
+  const my=e.clientY||e.touches?.[0]?.clientY;
+  for(const lyr of LAYERS){
+    for(const node of lyr.nodes){
+      if(node._px&&mx>=node._px&&mx<=node._px+node._pw&&my>=node._py&&my<=node._py+node._ph){
+        showInfo(node.info.t,node.info.d);
+        return;
+      }
+    }
+  }
 }
 
-// ── POPUP ────────────────────────────────────────────────
-function showPopup(title, desc) {
-  document.getElementById('pop-title').textContent = title;
-  document.getElementById('pop-desc').textContent  = desc;
-  document.getElementById('popup').style.display   = 'block';
-  autoRotate = false;
+function showInfo(t,d){
+  document.getElementById('inf-title').textContent=t;
+  document.getElementById('inf-desc').textContent=d;
+  document.getElementById('info-panel').style.display='block';
 }
-function closePopup() {
-  document.getElementById('popup').style.display = 'none';
+function closeInfo(){document.getElementById('info-panel').style.display='none';}
+
+// ── LAUNCH ───────────────────────────────────────────────
+function launch(){
+  const ov=document.getElementById('overlay');
+  ov.style.opacity='0';ov.style.transition='opacity 0.7s ease';
+  setTimeout(()=>{ov.style.display='none';started=true;initParticles();},700);
 }
 </script>
 </body>
