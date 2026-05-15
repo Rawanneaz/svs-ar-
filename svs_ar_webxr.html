@@ -1,490 +1,509 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SVS — AR Architecture</title>
+<title>SVS Architecture — Interactive 3D</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background:#000; overflow:hidden; font-family:'Helvetica Neue',sans-serif; }
-
-#video { 
-  position:fixed; top:0; left:0; 
-  width:100vw; height:100vh; 
-  object-fit:cover; 
-  z-index:1;
-}
-
-#canvas3d {
-  position:fixed; top:0; left:0;
-  width:100vw; height:100vh;
-  z-index:2;
-  pointer-events:none;
-}
+html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+canvas { display:block; width:100vw; height:100vh; touch-action:none; }
 
 #ui {
   position:fixed; bottom:0; left:0; right:0;
-  z-index:10;
-  padding:12px;
+  z-index:10; padding:10px;
+  pointer-events:none;
 }
-
-#hint-box {
-  background:rgba(6,12,26,0.88);
+#hint {
+  background:rgba(6,12,26,0.90);
   border:1px solid rgba(26,110,245,0.4);
-  border-radius:18px;
-  padding:16px 20px;
+  border-radius:16px;
+  padding:12px 18px;
   text-align:center;
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  pointer-events:auto;
 }
-#hint-box .icon { font-size:28px; margin-bottom:6px; }
-#hint-box h3 { color:#fff; font-size:15px; font-weight:700; margin-bottom:4px; }
-#hint-box p { color:#7a93b8; font-size:12px; line-height:1.5; }
-#hint-box .status {
-  display:inline-block;
+#hint h3 { color:#fff; font-size:14px; font-weight:700; margin-bottom:3px; font-family:sans-serif; }
+#hint p  { color:#7a93b8; font-size:11px; font-family:sans-serif; }
+#hint .badge {
+  display:inline-block; margin-top:8px;
   background:rgba(0,201,167,0.12);
   border:1px solid rgba(0,201,167,0.35);
-  color:#00c9a7;
-  font-size:11px;
-  padding:4px 14px;
-  border-radius:6px;
-  margin-top:10px;
+  color:#00c9a7; font-size:10px;
+  padding:3px 12px; border-radius:5px;
   font-family:monospace;
 }
 
-#info-popup {
+#popup {
   display:none;
-  background:rgba(6,12,26,0.92);
-  border:1px solid rgba(26,110,245,0.35);
-  border-radius:14px;
-  padding:14px 16px;
-  margin-bottom:10px;
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
-  animation: slideUp 0.3s ease;
-}
-@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
-#info-popup .close { float:right; color:#7a93b8; font-size:20px; cursor:pointer; line-height:1; }
-#info-popup h3 { color:#6fa8ff; font-size:13px; font-weight:700; margin-bottom:6px; }
-#info-popup p { color:#a0b4cc; font-size:12px; line-height:1.6; }
-
-#cam-error {
-  display:none;
-  position:fixed; inset:0;
-  background:#060c1a;
-  z-index:99;
-  align-items:center; justify-content:center;
-  flex-direction:column;
-  text-align:center;
-  padding:30px;
-}
-#cam-error h2 { color:#fff; font-size:20px; margin-bottom:10px; }
-#cam-error p { color:#7a93b8; font-size:13px; line-height:1.7; margin-bottom:20px; }
-.fix-btn {
-  background:rgba(26,110,245,0.15);
+  position:fixed; bottom:140px; left:10px; right:10px;
+  background:rgba(6,12,26,0.95);
   border:1px solid rgba(26,110,245,0.4);
-  color:#6fa8ff;
-  padding:12px 28px;
-  border-radius:100px;
-  font-size:14px;
-  cursor:pointer;
-  display:inline-block;
-  margin:6px;
+  border-radius:14px; padding:14px 16px;
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  z-index:20;
+  animation: up 0.25s ease;
 }
+@keyframes up { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
+#popup .x { float:right; color:#7a93b8; font-size:22px; cursor:pointer; line-height:1; }
+#popup h3 { color:#6fa8ff; font-size:13px; font-weight:700; margin-bottom:6px; font-family:sans-serif; }
+#popup p  { color:#a0b4cc; font-size:12px; line-height:1.65; font-family:sans-serif; }
 
-/* TAP BUTTONS — overlaid on canvas */
-#tap-layer {
-  position:fixed; top:0; left:0;
-  width:100vw; height:100vh;
-  z-index:5;
+#title-screen {
+  position:fixed; inset:0; z-index:30;
+  background:linear-gradient(135deg,#060c1a,#0d1829);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  text-align:center; padding:30px;
+  transition:opacity 0.6s ease;
 }
-.tap-zone {
-  position:absolute;
-  cursor:pointer;
-  border-radius:8px;
+#title-screen .logo { font-size:52px; margin-bottom:16px; }
+#title-screen h1 {
+  color:#fff; font-size:26px; font-weight:800;
+  letter-spacing:-0.02em; margin-bottom:6px;
+  font-family:sans-serif;
+  background:linear-gradient(135deg,#fff 40%,#6fa8ff);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+#title-screen p { color:#7a93b8; font-size:13px; line-height:1.7; margin-bottom:28px; font-family:sans-serif; }
+#start-btn {
+  background:linear-gradient(135deg,#1a6ef5,#0050cc);
+  color:#fff; border:none; border-radius:100px;
+  padding:14px 36px; font-size:15px; font-weight:700;
+  cursor:pointer; font-family:sans-serif;
+  box-shadow: 0 4px 24px rgba(26,110,245,0.4);
+}
+.mini-badge {
+  display:inline-block; margin:4px;
+  background:rgba(26,110,245,0.12);
+  border:1px solid rgba(26,110,245,0.25);
+  color:#6fa8ff; font-size:11px;
+  padding:4px 10px; border-radius:6px;
+  font-family:monospace;
 }
 </style>
 </head>
 <body>
 
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas3d"></canvas>
-<div id="tap-layer"></div>
-
-<div id="cam-error">
-  <div style="font-size:48px;margin-bottom:16px">📷</div>
-  <h2>Allow Camera Access</h2>
-  <p>
-    On iPhone: Go to <strong style="color:#fff">Settings → Safari → Camera</strong> → set to <strong style="color:#fff">"Allow"</strong><br><br>
-    Then come back and refresh this page.
-  </p>
-  <span class="fix-btn" onclick="startCamera()">Try Again</span>
+<!-- TITLE SCREEN -->
+<div id="title-screen">
+  <div class="logo">🏗️</div>
+  <h1>Sector Vulnerability<br>Scanner</h1>
+  <p>AI-powered financial risk detection<br>using labor markets, SEC filings &amp; market signals</p>
+  <div style="margin-bottom:20px">
+    <span class="mini-badge">3 AI Agents</span>
+    <span class="mini-badge">SVS Formula</span>
+    <span class="mini-badge">Basel IV</span>
+  </div>
+  <button id="start-btn" onclick="startExperience()">▶ Explore Architecture</button>
+  <p style="margin-top:16px;font-size:11px;color:#3d5a80">Drag to rotate · Tap any layer for details</p>
 </div>
 
+<canvas id="c"></canvas>
+
 <div id="ui">
-  <div id="info-popup">
-    <span class="close" onclick="closeInfo()">×</span>
-    <h3 id="popup-title"></h3>
-    <p id="popup-desc"></p>
+  <div id="hint">
+    <h3>🏗️ SVS Architecture — 3D Explorer</h3>
+    <p>Drag to rotate · Pinch to zoom · Tap any layer</p>
+    <div class="badge" id="badge-text">Drag to explore</div>
   </div>
-  <div id="hint-box">
-    <div class="icon">🏗️</div>
-    <h3>SVS Architecture — Live AR</h3>
-    <p>The 3D architecture is floating in front of you.<br>Move your phone around to explore it. Tap any layer!</p>
-    <div class="status" id="status-text">📷 Starting camera...</div>
-  </div>
+</div>
+
+<div id="popup">
+  <span class="x" onclick="closePopup()">×</span>
+  <h3 id="pop-title"></h3>
+  <p id="pop-desc"></p>
 </div>
 
 <script>
-// ─── LAYER DATA ───────────────────────────────────────────
+// ── DATA ──────────────────────────────────────────────────
 const LAYERS = [
   {
-    id: 'sources',
-    label: 'DATA SOURCES',
-    color: [0, 201, 167],
-    y: -1.8,
-    cards: [
-      { label: 'JOB\nPOSTINGS', sub: 'LinkedIn·Indeed', color: [0,201,167] },
-      { label: '10-K\nFILINGS',  sub: 'SEC.gov', color: [111,168,255] },
-      { label: 'MARKET\nDATA',   sub: 'Yahoo Finance', color: [245,166,35] }
+    label:'DATA SOURCES', sublabel:'Layer 01',
+    color:[0,201,167], y:-220,
+    cards:[
+      {label:'JOB\nPOSTINGS',   sub:'LinkedIn · Indeed', c:[0,201,167]},
+      {label:'10-K\nFILINGS',   sub:'SEC.gov', c:[111,168,255]},
+      {label:'MARKET\nDATA',    sub:'Yahoo Finance', c:[245,166,35]}
     ],
-    info: { title:'📊 Layer 1 — Data Sources', desc:'Three real-time public data streams: Job postings track AI-replaceable role drops. 10-K SEC filings detect rising AI adoption language. Yahoo Finance flags volume spikes without price movement.' }
+    info:{
+      title:'📊 Layer 1 — Data Sources',
+      desc:'Three public real-time data streams. Job postings track AI-replaceable role drops. SEC 10-K filings detect AI adoption language spikes. Yahoo Finance flags volume spikes without price movement — the smart money exit signal.'
+    }
   },
   {
-    id: 'agents',
-    label: 'AI AGENTS',
-    color: [111, 168, 255],
-    y: -0.6,
-    cards: [
-      { label: 'LABOR\nAGENT',    sub: 'w=0.40 · 8.2', color: [0,201,167] },
-      { label: 'DOCUMENT\nAGENT', sub: 'w=0.35 · 7.9', color: [111,168,255] },
-      { label: 'MARKET\nAGENT',   sub: 'w=0.25 · 6.8', color: [245,166,35] }
+    label:'AI AGENTS', sublabel:'Layer 02',
+    color:[111,168,255], y:-80,
+    cards:[
+      {label:'LABOR\nAGENT',    sub:'w=0.40 · Score: 8.2', c:[0,201,167]},
+      {label:'DOCUMENT\nAGENT', sub:'w=0.35 · Score: 7.9', c:[111,168,255]},
+      {label:'MARKET\nAGENT',   sub:'w=0.25 · Score: 6.8', c:[245,166,35]}
     ],
-    info: { title:'🤖 Layer 2 — AI Agents', desc:'Three specialized LLM agents each output a 0–10 disruption score. Labor Agent (weight 0.40) detects job collapse. Document Agent (0.35) reads filings. Market Agent (0.25) detects smart-money exit.' }
+    info:{
+      title:'🤖 Layer 2 — AI Agents',
+      desc:'Three specialized LLM agents each output a disruption score 0–10. Labor Agent (weight 0.40) is earliest signal. Document Agent (0.35) most reliable. Market Agent (0.25) is latest signal. Each agent uses a targeted LLM prompt on its data source.'
+    }
   },
   {
-    id: 'svs',
-    label: 'SVS SCORE',
-    color: [245, 166, 35],
-    y: 0.6,
-    cards: [
-      { label: 'SVS\n7.9', sub: '🔴 ALERT', color: [230,57,70] }
+    label:'SVS SCORE', sublabel:'Layer 03',
+    color:[245,166,35], y:60,
+    cards:[
+      {label:'SVS\n7.9', sub:'🔴 SECTOR ALERT', c:[230,57,70]}
     ],
-    info: { title:'⚡ SVS Score — 7.9 ALERT', desc:'SVS = (8.2×0.40) + (7.9×0.35) + (6.8×0.25) = 7.9. Threshold: SVS > 7.0 = Sector Alert. SVS > 8.5 = Critical Warning. SaaS sector is in the danger zone.' }
+    info:{
+      title:'⚡ SVS Score — 7.9 · ALERT',
+      desc:'SVS = (8.2 × 0.40) + (7.9 × 0.35) + (6.8 × 0.25) = 7.9\n\nThreshold: SVS > 7.0 → Sector Alert 🔴\nThreshold: SVS > 8.5 → Critical Warning 🚨\n\nSaaS sector is currently in the danger zone.'
+    }
   },
   {
-    id: 'alert',
-    label: 'ALERT SYSTEM',
-    color: [230, 57, 70],
-    y: 1.5,
-    cards: [
-      { label: '⚠ >7.0\nALERT',    sub: 'Watch list', color: [249,194,46] },
-      { label: '🔴 >8.5\nCRITICAL', sub: 'Basel IV P2', color: [230,57,70] }
+    label:'ALERT SYSTEM', sublabel:'Layer 04',
+    color:[230,57,70], y:190,
+    cards:[
+      {label:'⚠ >7.0\nALERT',     sub:'Watch list', c:[249,194,46]},
+      {label:'🔴 >8.5\nCRITICAL', sub:'Basel IV P2', c:[230,57,70]}
     ],
-    info: { title:'🚨 Layer 4 — Alert System', desc:'SVS > 7.0 activates Sector Alert: reduce exposure 30%, increase capital buffer, activate watch list. SVS > 8.5 triggers Critical: immediate supervisory notification + Basel IV Pillar 2 escalation.' }
+    info:{
+      title:'🚨 Layer 4 — Alert System',
+      desc:'Automated threshold monitoring. SVS > 7.0 activates Sector Alert: reduce exposure 30%, increase capital buffer, activate watch list.\n\nSVS > 8.5 triggers Critical Warning: immediate supervisory notification + Basel IV Pillar 2 escalation.'
+    }
   },
   {
-    id: 'prevention',
-    label: 'PREVENTION',
-    color: [26, 110, 245],
-    y: 2.4,
-    cards: [
-      { label: '📉 REDUCE\nEXPOSURE', sub: '−30%', color: [26,110,245] },
-      { label: '🏦 CAPITAL\nBUFFER',  sub: 'Increase', color: [26,110,245] },
-      { label: '🏛️ REG\nFLAG',       sub: 'Pillar 2', color: [26,110,245] }
+    label:'PREVENTION', sublabel:'Layer 05',
+    color:[26,110,245], y:320,
+    cards:[
+      {label:'📉 REDUCE\nEXPOSURE', sub:'−30%', c:[26,110,245]},
+      {label:'🏦 CAPITAL\nBUFFER',  sub:'Increase', c:[26,110,245]},
+      {label:'🏛️ REG\nFLAG',       sub:'Pillar 2', c:[26,110,245]}
     ],
-    info: { title:'🛡️ Layer 5 — Prevention Actions', desc:'Automated prevention: Reduce sector portfolio weight by 30%. Raise capital provisions per Basel IV. Flag for supervisory stress test. All triggered automatically when SVS crosses thresholds.' }
+    info:{
+      title:'🛡️ Layer 5 — Prevention Actions',
+      desc:'Three automated prevention actions triggered by SVS thresholds:\n\n1. Reduce sector portfolio exposure by 30%\n2. Raise capital buffer provisions (Basel IV)\n3. Flag for supervisory stress test (Pillar 2)\n\nAll actions fire automatically when SVS crosses 7.0.'
+    }
   }
 ];
 
-// ─── CANVAS + 3D SETUP ────────────────────────────────────
-const canvas = document.getElementById('canvas3d');
+// ── CANVAS SETUP ──────────────────────────────────────────
+const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W, H, cx, cy;
-let time = 0;
-let camActive = false;
 
 function resize() {
   W = canvas.width  = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  cx = W / 2;
-  cy = H / 2;
-  buildTapZones();
+  cx = W/2; cy = H/2;
 }
 resize();
 window.addEventListener('resize', resize);
 
-// ─── CAMERA ───────────────────────────────────────────────
-const video = document.getElementById('video');
+// ── CAMERA STATE ─────────────────────────────────────────
+let rotX = -0.18, rotY = 0.25;
+let zoom = 1;
+let autoRotate = true;
+let started = false;
+let time = 0;
 
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-    video.srcObject = stream;
-    video.play();
-    camActive = true;
-    document.getElementById('cam-error').style.display = 'none';
-    document.getElementById('status-text').textContent = '✓ Camera active — tap any layer!';
-    requestAnimationFrame(render);
-  } catch(e) {
-    document.getElementById('cam-error').style.display = 'flex';
-    console.error('Camera error:', e);
+// ── TOUCH / MOUSE ────────────────────────────────────────
+let drag = false, lastX = 0, lastY = 0;
+let pinchDist0 = 0, zoom0 = 1;
+
+function pointerDown(x, y) {
+  drag = true; autoRotate = false;
+  lastX = x; lastY = y;
+}
+function pointerMove(x, y) {
+  if (!drag) return;
+  rotY += (x - lastX) * 0.008;
+  rotX += (y - lastY) * 0.008;
+  rotX = Math.max(-0.9, Math.min(0.9, rotX));
+  lastX = x; lastY = y;
+}
+function pointerUp() { drag = false; }
+
+canvas.addEventListener('mousedown',  e => pointerDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove',  e => pointerMove(e.clientX, e.clientY));
+canvas.addEventListener('mouseup',    pointerUp);
+canvas.addEventListener('mouseleave', pointerUp);
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    pointerDown(e.touches[0].clientX, e.touches[0].clientY);
+  } else if (e.touches.length === 2) {
+    drag = false;
+    pinchDist0 = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    zoom0 = zoom;
   }
+}, {passive:true});
+
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1) {
+    pointerMove(e.touches[0].clientX, e.touches[0].clientY);
+  } else if (e.touches.length === 2) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    zoom = Math.max(0.5, Math.min(2.5, zoom0 * (d / pinchDist0)));
+  }
+}, {passive:true});
+
+canvas.addEventListener('touchend', pointerUp);
+
+// ── TAP TO SHOW INFO ─────────────────────────────────────
+let tappedLayer = null;
+canvas.addEventListener('click', e => {
+  const mx = e.clientX, my = e.clientY;
+  // Find which layer was tapped by checking projected positions
+  for (const lyr of LAYERS) {
+    const p = project3D(0, lyr.y, 0);
+    if (Math.abs(mx - p.x) < 180*p.s && Math.abs(my - p.y) < 55*p.s) {
+      showPopup(lyr.info.title, lyr.info.desc);
+      return;
+    }
+  }
+});
+
+// ── 3D MATH ──────────────────────────────────────────────
+function rotatePoint(x, y, z) {
+  // rotate around Y
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  let x1 = x*cosY + z*sinY;
+  let z1 = -x*sinY + z*cosY;
+  // rotate around X
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  let y1 = y*cosX - z1*sinX;
+  let z2 = y*sinX + z1*cosX;
+  return {x:x1, y:y1, z:z2};
 }
 
-startCamera();
-
-// ─── 3D PROJECTION ────────────────────────────────────────
-const FOV = 600;
-function project(x, y, z) {
-  const scale = FOV / (FOV + z);
-  return {
-    x: cx + x * scale,
-    y: cy + y * scale,
-    scale
-  };
+const FOV = 700;
+function project3D(x, y, z) {
+  const r = rotatePoint(x * zoom, y * zoom, z * zoom);
+  const s = FOV / (FOV + r.z + 600);
+  return { x: cx + r.x * s, y: cy + r.y * s, s };
 }
 
-// ─── DRAW A FLOATING CARD ─────────────────────────────────
-function drawCard(x3, y3, z3, w, h, color, label, sub, alpha) {
-  const p = project(x3, y3, z3);
-  const pw = w * p.scale;
-  const ph = h * p.scale;
-  const px = p.x - pw/2;
-  const py = p.y - ph/2;
-
-  const r = color[0], g = color[1], b = color[2];
-
-  // Shadow/glow
-  ctx.shadowColor = `rgba(${r},${g},${b},0.5)`;
-  ctx.shadowBlur = 18 * p.scale;
-
-  // Card body
-  ctx.globalAlpha = alpha * 0.92;
-  ctx.fillStyle = `rgba(10,25,50,0.88)`;
-  roundRect(ctx, px, py, pw, ph, 8 * p.scale);
-  ctx.fill();
-
-  // Top accent bar
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = `rgba(${r},${g},${b},0.9)`;
-  roundRect(ctx, px, py, pw, 3 * p.scale, 2 * p.scale);
-  ctx.fill();
-
-  // Border
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.5)`;
-  ctx.lineWidth = 0.8 * p.scale;
-  ctx.globalAlpha = alpha * 0.7;
-  roundRect(ctx, px, py, pw, ph, 8 * p.scale);
-  ctx.stroke();
-
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = alpha;
-
-  // Label text
-  const lines = label.split('\n');
-  const fs = Math.max(9, 13 * p.scale);
-  ctx.font = `700 ${fs}px 'Helvetica Neue', sans-serif`;
-  ctx.fillStyle = `rgb(${r},${g},${b})`;
-  ctx.textAlign = 'center';
-  const lineH = fs * 1.3;
-  const totalH = lines.length * lineH;
-  lines.forEach((line, i) => {
-    ctx.fillText(line, p.x, py + ph * 0.35 + i * lineH - totalH/2 + lineH);
-  });
-
-  // Sub text
-  const sfs = Math.max(7, 10 * p.scale);
-  ctx.font = `400 ${sfs}px 'Helvetica Neue', sans-serif`;
-  ctx.fillStyle = 'rgba(160,180,210,0.9)';
-  ctx.fillText(sub, p.x, py + ph - 8 * p.scale);
-
-  ctx.globalAlpha = 1;
-  return { px, py, pw, ph };
-}
-
-function roundRect(ctx, x, y, w, h, r) {
+// ── DRAW HELPERS ─────────────────────────────────────────
+function rr(x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.lineTo(x+w-r, y);
-  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
-  ctx.lineTo(x+w, y+h-r);
-  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-  ctx.lineTo(x+r, y+h);
-  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
-  ctx.lineTo(x, y+r);
-  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
   ctx.closePath();
 }
 
-// ─── DRAW CONNECTOR LINE ──────────────────────────────────
-function drawLine(x1,y1,z1, x2,y2,z2, color, alpha) {
-  const p1 = project(x1,y1,z1);
-  const p2 = project(x2,y2,z2);
+function drawCard(x3, y3, z3, w, h, color, label, sub) {
+  const p = project3D(x3, y3, z3);
+  const pw = w * p.s, ph = h * p.s;
+  const px = p.x - pw/2, py = p.y - ph/2;
+  const [r,g,b] = color;
+
+  ctx.shadowColor = `rgba(${r},${g},${b},0.55)`;
+  ctx.shadowBlur = 18 * p.s;
+
+  // body
+  ctx.fillStyle = `rgba(8,20,44,0.92)`;
+  rr(px, py, pw, ph, 9*p.s); ctx.fill();
+
+  // top bar
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = `rgba(${r},${g},${b},0.95)`;
+  rr(px, py, pw, 3.5*p.s, 2*p.s); ctx.fill();
+
+  // border
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.45)`;
+  ctx.lineWidth = p.s;
+  rr(px, py, pw, ph, 9*p.s); ctx.stroke();
+
+  // label
+  const lines = label.split('\n');
+  const fs = Math.max(8, 12 * p.s);
+  ctx.font = `700 ${fs}px sans-serif`;
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.textAlign = 'center';
+  const lh = fs * 1.35;
+  lines.forEach((ln, i) => {
+    ctx.fillText(ln, p.x, py + ph*0.32 + i*lh + lh);
+  });
+
+  // sub
+  const sfs = Math.max(7, 9.5 * p.s);
+  ctx.font = `400 ${sfs}px sans-serif`;
+  ctx.fillStyle = 'rgba(150,175,210,0.85)';
+  ctx.fillText(sub, p.x, py + ph - 7*p.s);
+}
+
+function drawLayerBg(y3, color, label, sublabel) {
+  const pL = project3D(-200, y3, 0);
+  const pR = project3D( 200, y3, 0);
+  const [r,g,b] = color;
+
+  // separator line
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.22)`;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
-  ctx.lineWidth = 1.5;
-  ctx.globalAlpha = alpha;
+  ctx.moveTo(pL.x, pL.y - 40*pL.s);
+  ctx.lineTo(pR.x, pR.y - 40*pR.s);
   ctx.stroke();
+
+  // sublabel
+  const sfs = Math.max(7, 9 * pL.s);
+  ctx.font = `600 ${sfs}px monospace`;
+  ctx.fillStyle = `rgba(${r},${g},${b},0.5)`;
+  ctx.textAlign = 'left';
+  ctx.fillText(sublabel, pL.x, pL.y - 44*pL.s);
+
+  // label
+  const fs = Math.max(9, 12 * pL.s);
+  ctx.font = `700 ${fs}px sans-serif`;
+  ctx.fillStyle = `rgba(${r},${g},${b},0.85)`;
+  ctx.fillText(label, pL.x + sfs*3.5, pL.y - 44*pL.s);
+
+  // pulse dot
+  const pulse = (Math.sin(time*2.5) * 0.5 + 0.5);
+  ctx.beginPath();
+  ctx.arc(pL.x + sfs*0.5, pL.y - 47*pL.s, 3.5*pL.s, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(${r},${g},${b},${0.3 + pulse*0.7})`;
+  ctx.fill();
+}
+
+function drawConnector(y1, y2, color) {
+  const p1 = project3D(0, y1, 0);
+  const p2 = project3D(0, y2, 0);
+  const [r,g,b] = color;
+  const grad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+  grad.addColorStop(0, `rgba(${r},${g},${b},0.5)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0.1)`);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y + 40*p1.s);
+  ctx.lineTo(p2.x, p2.y - 40*p2.s);
+  ctx.stroke();
+}
+
+// ── STAR BACKGROUND ──────────────────────────────────────
+const stars = Array.from({length:120}, () => ({
+  x: Math.random()*2000 - 1000,
+  y: Math.random()*2000 - 1000,
+  r: Math.random()*1.5 + 0.3,
+  a: Math.random()*0.6 + 0.1
+}));
+
+function drawStars() {
+  for (const s of stars) {
+    const p = project3D(s.x, s.y, -500);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(180,210,255,${s.a})`;
+    ctx.fill();
+  }
+}
+
+// ── GRID FLOOR ───────────────────────────────────────────
+function drawGrid() {
+  const gridY = 420;
+  ctx.globalAlpha = 0.08;
+  for (let i = -4; i <= 4; i++) {
+    const pA = project3D(i*60, gridY, -300);
+    const pB = project3D(i*60, gridY,  300);
+    ctx.strokeStyle = '#1a6ef5';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(pA.x,pA.y); ctx.lineTo(pB.x,pB.y); ctx.stroke();
+    const pC = project3D(-300, gridY, i*60);
+    const pD = project3D( 300, gridY, i*60);
+    ctx.beginPath(); ctx.moveTo(pC.x,pC.y); ctx.lineTo(pD.x,pD.y); ctx.stroke();
+  }
   ctx.globalAlpha = 1;
 }
 
-// ─── DRAW LAYER LABEL ─────────────────────────────────────
-function drawLabel(x3, y3, z3, text, color) {
-  const p = project(x3, y3, z3);
-  const fs = Math.max(8, 11 * p.scale);
-  ctx.font = `700 ${fs}px 'Helvetica Neue', sans-serif`;
-  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.8)`;
-  ctx.textAlign = 'left';
-  ctx.letterSpacing = '0.08em';
-  ctx.fillText(text, p.x - 160 * p.scale, p.y);
-  ctx.letterSpacing = '0';
-}
-
-// ─── TAP ZONES ────────────────────────────────────────────
-let tapZones = [];
-
-function buildTapZones() {
-  const layer = document.getElementById('tap-layer');
-  layer.innerHTML = '';
-  tapZones = [];
-
-  LAYERS.forEach((lyr, li) => {
-    const t = 0;
-    const bobY = Math.sin(t + li) * 8;
-    const z = -200;
-    const yBase = (lyr.y * 90) + bobY;
-    const numCards = lyr.cards.length;
-    const spacing = 130;
-    const totalW = (numCards-1) * spacing;
-
-    lyr.cards.forEach((card, ci) => {
-      const x3 = (ci - (numCards-1)/2) * spacing;
-      const p = project(x3, yBase, z);
-      const pw = 110 * p.scale;
-      const ph = 80 * p.scale;
-
-      const div = document.createElement('div');
-      div.className = 'tap-zone';
-      div.style.left = (p.x - pw/2) + 'px';
-      div.style.top  = (p.y - ph/2) + 'px';
-      div.style.width  = pw + 'px';
-      div.style.height = ph + 'px';
-      div.onclick = () => showInfo(lyr.info.title, lyr.info.desc);
-      layer.appendChild(div);
-      tapZones.push(div);
-    });
-  });
-}
-
-// ─── MAIN RENDER LOOP ─────────────────────────────────────
+// ── RENDER ───────────────────────────────────────────────
 function render(ts) {
+  if (!started) { requestAnimationFrame(render); return; }
   time = ts * 0.001;
-  ctx.clearRect(0, 0, W, H);
 
-  // Gentle camera sway using device or time
-  const camX = Math.sin(time * 0.3) * 15;
-  const camY = Math.cos(time * 0.2) * 8;
-
-  // Draw connector lines between layers
-  for (let li = 0; li < LAYERS.length - 1; li++) {
-    const lA = LAYERS[li];
-    const lB = LAYERS[li+1];
-    const bobA = Math.sin(time * 1.1 + li * 0.8) * 8;
-    const bobB = Math.sin(time * 1.1 + (li+1) * 0.8) * 8;
-    const yA = lA.y * 90 + bobA + camY;
-    const yB = lB.y * 90 + bobB + camY;
-    drawLine(camX, yA, -200, camX, yB, -200, [255,255,255], 0.12);
+  if (autoRotate) {
+    rotY = Math.sin(time * 0.18) * 0.45;
+    rotX = -0.15 + Math.sin(time * 0.11) * 0.05;
   }
 
-  // Draw each layer
+  // BG gradient
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#060c1a');
+  bg.addColorStop(1, '#0a1628');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars();
+  drawGrid();
+
+  // Connectors
+  for (let i = 0; i < LAYERS.length-1; i++) {
+    const la = LAYERS[i], lb = LAYERS[i+1];
+    const midColor = la.color.map((c,j) => Math.round((c + lb.color[j])/2));
+    drawConnector(la.y + 40, lb.y - 40, midColor);
+  }
+
+  // Layers
   LAYERS.forEach((lyr, li) => {
-    const bob = Math.sin(time * 1.1 + li * 0.8) * 8;
-    const yBase = lyr.y * 90 + bob + camY;
-    const numCards = lyr.cards.length;
+    const bob = Math.sin(time * 1.0 + li * 0.7) * 6;
+    const y = lyr.y + bob;
 
-    // Layer label
-    drawLabel(-155 + camX, yBase - 52, -200, lyr.label, lyr.color);
+    drawLayerBg(y, lyr.color, lyr.label, lyr.sublabel);
 
-    // Separator line
-    const pL = project(-140 + camX, yBase - 42, -200);
-    const pR = project( 140 + camX, yBase - 42, -200);
-    ctx.beginPath();
-    ctx.moveTo(pL.x, pL.y);
-    ctx.lineTo(pR.x, pR.y);
-    ctx.strokeStyle = `rgba(${lyr.color[0]},${lyr.color[1]},${lyr.color[2]},0.25)`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Cards
+    const n = lyr.cards.length;
+    const spacing = n === 1 ? 0 : n === 2 ? 140 : 140;
     lyr.cards.forEach((card, ci) => {
-      const spacing = numCards > 1 ? 130 : 0;
-      const x3 = (ci - (numCards-1)/2) * spacing + camX;
-      const cardBob = Math.sin(time * 1.3 + li * 0.8 + ci * 0.4) * 4;
-      const y3 = yBase + cardBob;
-      drawCard(x3, y3, -200, 110, 80, card.color, card.label, card.sub, 0.95);
+      const x = (ci - (n-1)/2) * spacing;
+      const cardBob = Math.sin(time * 1.4 + li * 0.7 + ci * 0.5) * 3;
+      drawCard(x, y + cardBob, 0, 118, 88, card.c, card.label, card.sub);
     });
-
-    // Pulse dot
-    const pulseAlpha = (Math.sin(time * 2 + li) * 0.5 + 0.5) * 0.8;
-    const pd = project(camX, yBase - 42, -200);
-    ctx.beginPath();
-    ctx.arc(pL.x - 8, pL.y, 3, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(${lyr.color[0]},${lyr.color[1]},${lyr.color[2]},${pulseAlpha})`;
-    ctx.fill();
   });
 
-  // Update tap zones to match animation
-  updateTapZones(camY);
+  // SVS glow ring
+  const svsLayer = LAYERS[2];
+  const bob = Math.sin(time * 1.0 + 2 * 0.7) * 6;
+  const svsPt = project3D(0, svsLayer.y + bob, 0);
+  const pulse = Math.sin(time * 2) * 0.5 + 0.5;
+  ctx.beginPath();
+  ctx.arc(svsPt.x, svsPt.y, 95*svsPt.s, 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(230,57,70,${0.15 + pulse*0.25})`;
+  ctx.lineWidth = 2.5*svsPt.s;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(svsPt.x, svsPt.y, 115*svsPt.s, 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(245,166,35,${0.08 + pulse*0.12})`;
+  ctx.lineWidth = 1.5*svsPt.s;
+  ctx.stroke();
 
   requestAnimationFrame(render);
 }
+requestAnimationFrame(render);
 
-function updateTapZones(camY) {
-  let idx = 0;
-  LAYERS.forEach((lyr, li) => {
-    const bob = Math.sin(time * 1.1 + li * 0.8) * 8;
-    const yBase = lyr.y * 90 + bob + camY;
-    const numCards = lyr.cards.length;
-
-    lyr.cards.forEach((card, ci) => {
-      const spacing = numCards > 1 ? 130 : 0;
-      const x3 = (ci - (numCards-1)/2) * spacing;
-      const p = project(x3, yBase, -200);
-      const pw = 110 * p.scale;
-      const ph = 80 * p.scale;
-      if (tapZones[idx]) {
-        tapZones[idx].style.left = (p.x - pw/2) + 'px';
-        tapZones[idx].style.top  = (p.y - ph/2) + 'px';
-        tapZones[idx].style.width  = pw + 'px';
-        tapZones[idx].style.height = ph + 'px';
-      }
-      idx++;
-    });
-  });
+// ── START ────────────────────────────────────────────────
+function startExperience() {
+  const ts = document.getElementById('title-screen');
+  ts.style.opacity = '0';
+  setTimeout(() => { ts.style.display = 'none'; started = true; }, 600);
+  document.getElementById('badge-text').textContent = '✓ Tap any layer for details';
 }
 
-// ─── INFO POPUP ───────────────────────────────────────────
-function showInfo(title, desc) {
-  document.getElementById('popup-title').textContent = title;
-  document.getElementById('popup-desc').textContent  = desc;
-  document.getElementById('info-popup').style.display = 'block';
+// ── POPUP ────────────────────────────────────────────────
+function showPopup(title, desc) {
+  document.getElementById('pop-title').textContent = title;
+  document.getElementById('pop-desc').textContent  = desc;
+  document.getElementById('popup').style.display   = 'block';
+  autoRotate = false;
 }
-function closeInfo() {
-  document.getElementById('info-popup').style.display = 'none';
+function closePopup() {
+  document.getElementById('popup').style.display = 'none';
 }
-
-// ─── DEVICE TILT (bonus immersion) ────────────────────────
-let tiltX = 0, tiltY = 0;
-window.addEventListener('deviceorientation', (e) => {
-  tiltX = (e.gamma || 0) * 0.5;
-  tiltY = (e.beta  || 0) * 0.3;
-});
 </script>
 </body>
 </html>
